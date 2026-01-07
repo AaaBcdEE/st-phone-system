@@ -622,3 +622,24 @@
         padding-bottom: env(safe-area-inset-bottom, 20px) !important;
     }
 }
+/* [수정됨] SVG 아이콘 스타일 (크기 확대 & 강제 중앙 정렬) */
+
+/* 1. 아이콘 컨테이너를 강제로 정리 */
+.st-app-icon {
+    display: flex !important;          /* 내부 내용물 정렬 모드 켜기 */
+    justify-content: center !important; /* 가로 중앙 정렬 */
+    align-items: center !important;    /* 세로 중앙 정렬 */
+    padding: 0 !important;             /* 기존에 있던 패딩(여백) 강제 제거 */
+}
+
+/* 2. SVG 그림 크기 키우기 */
+.st-app-icon svg {
+    width: 42px;    /* 기존 32px -> 42px (30% 커짐) */
+    height: 42px;   /* 동일하게 키움 */
+
+    fill: white;    /* 색상은 흰색 유지 */
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); /* 그림자도 살짝 진하게 */
+
+    /* 위치 미세 조정 필요 시 사용 (지금은 중앙이라 0) */
+    transform: translate(0, 0);
+}
