@@ -5,7 +5,8 @@
     "description": "Interactive Phone UI for SillyTavern. Press X to toggle.",
     "author": "User",
     "js": "index.js",
-    "css": "style.css"
-    "homePage": "https://github.com/AaaBcdEE/st-phone-system",
+    "css": "style.css",
+    "homePage": "https://github.com/AaaBcdEE/st-phone-system"
 }
+
 
