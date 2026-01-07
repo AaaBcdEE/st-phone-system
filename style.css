@@ -432,16 +432,18 @@
         top: 8px;
     }
 
-    /* 홈 바 영역 확대 */
+    /* [수정됨] 홈 바 위치 조정 (사파리 하단 바 위로 들어올리기) */
     .st-phone-home-area {
-        height: 34px !important;
-        bottom: 5px !important;
+        /* 높이 계산: 기본 15px + 아이폰 노치 공간 + 사파리 여유 공간 */
+        bottom: calc(20px + env(safe-area-inset-bottom, 20px)) !important;
+        height: 40px !important; /* 터치하기 좋게 영역 자체를 키움 */
+
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        z-index: 2147483647 !important; /* 무조건 맨 위에 */
     }
 
-    .st-phone-home-bar {
-        width: 140px !important;
-        height: 5px !important;
-    }
 }
 
 /* =========================================
