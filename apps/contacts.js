@@ -80,9 +80,16 @@ window.STPhone.Apps.Contacts = (function() {
             .st-contact-action-btn.call { background: #007aff; }
             .st-contacts-fab {
                 position: absolute;
-                bottom: 25px; right: 20px;
+
+                /* [수정됨] 바닥에서 훨씬 높이 띄움 (85px) */
+                bottom: calc(85px + env(safe-area-inset-bottom, 20px));
+
+                right: 20px;
+                /* ... 나머지 코드는 그대로 두기 ... */
+
                 width: 56px; height: 56px;
                 border-radius: 50%;
+                /* ... (나머지 코드는 그대로 둬도 됨) ... */
                 background: var(--pt-accent, #007aff);
                 color: white;
                 border: none;
@@ -90,6 +97,7 @@ window.STPhone.Apps.Contacts = (function() {
                 cursor: pointer;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             }
+
             .st-contacts-empty {
                 text-align: center;
                 padding: 60px 20px;
@@ -120,8 +128,11 @@ window.STPhone.Apps.Contacts = (function() {
             .st-contact-edit-content {
                 flex: 1;
                 overflow-y: auto;
-                padding: 20px 15px;
+
+                /* [수정됨] 아래쪽 여백을 100px로 확 늘려서 홈 바와 겹치지 않게 함 */
+                padding: 20px 15px calc(100px + env(safe-area-inset-bottom)) 15px;
             }
+
             .st-contact-edit-avatar-wrap {
                 text-align: center;
                 margin-bottom: 25px;
