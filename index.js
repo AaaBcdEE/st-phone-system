@@ -1,0 +1,245 @@
+(function() {
+    'use strict';
+
+    const EXTENSION_NAME = 'ST Phone System';
+    const EXTENSION_FOLDER = 'st-phone-system';
+    const BASE_PATH = `/scripts/extensions/third-party/${EXTENSION_FOLDER}`;
+
+    function loadModule(fileName) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = `${BASE_PATH}/${fileName}`;
+            script.onload = () => {
+                console.log(`[${EXTENSION_NAME}] Loaded: ${fileName}`);
+                resolve();
+            };
+            script.onerror = (e) => reject(e);
+            document.head.appendChild(script);
+        });
+    }
+
+    async function initialize() {
+        console.log(`🚀 [${EXTENSION_NAME}] Starting initialization...`);
+
+        try {
+            // 1. Core 모듈 로드
+            await loadModule('utils.js');
+
+            // 2. Feature 모듈 로드
+            await loadModule('ui.js');
+            await loadModule('inputs.js');
+
+            // 3. 기본 Apps 모듈 로드 (apps 폴더 내 파일들)
+            await loadModule('apps/settings.js');
+            await loadModule('apps/camera.js');
+            await loadModule('apps/album.js');
+            await loadModule('apps/contacts.js');
+            await loadModule('apps/messages.js');
+            await loadModule('apps/phone.js');
+
+            // 4. 스토어 앱 로드
+            await loadModule('apps/store.js');
+
+            // 5. 스토어에서 설치 가능한 앱들 로드
+            await loadModule('apps/store-apps/notes.js');
+            await loadModule('apps/store-apps/weather.js');
+            await loadModule('apps/store-apps/music.js');
+            await loadModule('apps/store-apps/games.js');
+
+
+            // 6. 모듈별 Init 실행
+            if (window.STPhone.UI) {
+                window.STPhone.UI.init({
+                    utils: window.STPhone.Utils
+                });
+            }
+
+            if (window.STPhone.Inputs) {
+                window.STPhone.Inputs.init({
+                    utils: window.STPhone.Utils,
+                    ui: window.STPhone.UI
+                });
+            }
+
+            // 7. 실리태번 옵션 메뉴에 폰 토글 버튼 추가
+            addPhoneToggleButton();
+
+            console.log(`✅ [${EXTENSION_NAME}] All modules initialized! Press 'X' to toggle phone.`);
+
+        } catch (error) {
+            console.error(`❌ [${EXTENSION_NAME}] Initialization failed:`, error);
+        }
+    }
+
+    // [NEW] 실리태번 옵션 메뉴에 폰 토글 버튼 추가
+    function addPhoneToggleButton() {
+        // 이미 추가되어 있으면 스킵
+        if ($('#option_toggle_phone').length > 0) return;
+
+        // 옵션 메뉴 (#options .options-content)에 폰 버튼 추가
+        const $optionsContent = $('#options .options-content');
+        if ($optionsContent.length > 0) {
+            // Author's Note 항목 뒤에 추가
+            const phoneOption = `
+                <a id="option_toggle_phone">
+                    <i class="fa-lg fa-solid fa-mobile-screen"></i>
+                    <span>📱 Phone</span>
+                </a>
+            `;
+            
+            // option_toggle_AN 뒤에 삽입
+            const $anOption = $('#option_toggle_AN');
+            if ($anOption.length > 0) {
+                $anOption.after(phoneOption);
+            } else {
+                // 못 찾으면 그냥 맨 앞에 추가
+                $optionsContent.prepend(phoneOption);
+            }
+
+            // 클릭 이벤트 연결
+            $('#option_toggle_phone').on('click', function() {
+                // 옵션 메뉴 닫기
+                $('#options').hide();
+                
+                // 폰 토글
+                if (window.STPhone && window.STPhone.UI) {
+                    window.STPhone.UI.togglePhone();
+                }
+            });
+
+            console.log(`📱 [${EXTENSION_NAME}] Phone toggle button added to options menu.`);
+        }
+    }
+
+    $(document).ready(function() {
+        setTimeout(initialize, 500);
+
+        // 메인 채팅 감시자 실행
+        setupChatObserver();
+    });
+
+    // 감시자 함수 정의
+/* ==============================================================
+   수정후 코드 (index.js 하단부를 이걸로 완전히 교체하세요)
+   ============================================================== */
+
+    // [중요] 페이지 로드 시 기존 메시지도 검사하기 위해 Observer 시작 전 스캔 실행
+    function applyHideLogicToAll() {
+        const messages = document.querySelectorAll('.mes');
+        messages.forEach(node => {
+            hideSystemLogs(node); // 이미 있는 메시지 숨기기
+        });
+    }
+
+    // 감시자 함수 정의 (Observer)
+    function setupChatObserver() {
+        // 채팅창(#chat)이 존재할 때까지 대기
+        const target = document.querySelector('#chat');
+        if (!target) {
+            setTimeout(setupChatObserver, 1000);
+            return;
+        }
+
+        // 1. [핵심] 챗이 로드되자마자 현재 화면에 있는 로그들을 싹 검사해서 숨김
+        applyHideLogicToAll();
+
+        // 2. 새 메시지가 추가되는지 감시
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                // 노드가 추가될 때 (새 메시지, 혹은 채팅 로드)
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1 && node.classList.contains('mes')) {
+                        // 순서 중요: 먼저 숨길 건지 판단하고 -> 그 다음 폰과 동기화
+                        hideSystemLogs(node);
+                        processSync(node);
+                    }
+                });
+            });
+        });
+
+        observer.observe(target, { childList: true, subtree: true });
+        console.log(`[${EXTENSION_NAME}] Chat Observer & Auto-Hider Started.`);
+    }
+
+    // [신규 기능] 폰 로그인지 검사하고 숨겨주는 함수
+    function hideSystemLogs(node) {
+        // 이미 처리된 건 스킵
+        if (node.classList.contains('st-phone-hidden-log')) return;
+
+        const textDiv = node.querySelector('.mes_text');
+        if (!textDiv) return;
+
+        const text = textDiv.innerText;
+
+/* 수정후 코드 (안전한 버전) */
+
+        // [핵심 설명]
+        // ^   : 문장의 시작을 의미
+        // \s* : 앞에 띄어쓰기가 몇 칸 있든 상관없이 잡아냄
+        // 이렇게 해야 "나는 (SMS) 를 보냈다" 같은 문장은 안 숨겨지고,
+        // 진짜 시스템 로그 "(SMS) 안녕" 만 숨겨집니다.
+
+// [수정후 코드 모습] - 이 부분을 복사해서 'hiddenPatterns' 부분을 덮어씌우세요.
+        const hiddenPatterns = [
+            /^\s*\[📞/i,           // 통화 시작/진행 로그
+            /^\s*\[❌/i,           // 통화 종료 로그
+            /^\s*\[📩/i,           // 문자 수신 로그 (사진 포함)
+            /^\s*\[📵/i,           // [🌟추가됨] 거절/부재중 로그 숨기기
+            /^\s*\[⛔/i,           // [🌟추가됨] 차단됨 로그 숨기기
+            /^\s*\[🚫/i,           // [NEW] 이거다. "읽씹(IGNORE)" 로그 숨기기 추가됨
+        ];
+
+
+
+        // 패턴 중 하나라도 맞으면 CSS 숨김 클래스 부여
+        const shouldHide = hiddenPatterns.some(regex => regex.test(text));
+
+        if (shouldHide) {
+            node.classList.add('st-phone-hidden-log');
+            // 혹시 모르니 style 속성으로도 이중 잠금
+            node.style.display = 'none';
+        }
+    }
+
+    // 메시지 분석 및 폰으로 전송 (동기화)
+    function processSync(node) {
+                if (window.STPhone.Apps.Settings && window.STPhone.Apps.Settings.getSettings) {
+            const s = window.STPhone.Apps.Settings.getSettings();
+            // chatToSms 값이 존재하고 false라면(꺼져있다면) 중단
+            if (s.chatToSms === false) {
+                return;
+            }
+        }
+        // 방금 우리가 숨긴 로그라면? --> 동기화 로직은 실행하되, 화면엔 안 보이게 둠.
+        // 하지만 'syncExternalMessage'는 외부(유저 직접 입력) 메시지를 폰으로 가져오는 것이므로,
+        // (SMS) 태그가 달린 '히든 로그' 자체를 폰으로 또 보내면 안됨 (무한 복제 방지).
+        // 따라서 히든 로그는 여기서 무시합니다.
+        if (node.classList.contains('st-phone-hidden-log') || node.style.display === 'none') {
+            return;
+        }
+
+        // --- 여기서부터는 기존 로직과 동일 (외부 문자 인식용) ---
+        // 예: 유저가 폰 앱을 안 쓰고 채팅창에 직접 "/send (SMS) 안녕" 이라고 쳤을 때를 대비함
+
+        const textDiv = node.querySelector('.mes_text');
+        if (!textDiv) return;
+
+        const rawText = textDiv.innerText;
+
+        // (SMS)로 시작하는데 아직 안 숨겨진 게 있다면? -> 유저가 직접 친 것
+        // 혹은 다른 확장이 만든 것.
+        const smsRegex = /^[\(\[]\s*(?:SMS|Text|MMS|Message|문자)\s*[\)\]][:：]?\s*(.*)/i;
+        const match = rawText.match(smsRegex);
+
+        if (match) {
+            const cleanText = match[1].trim();
+            const isUser = node.getAttribute('is_user') === 'true';
+
+            if (window.STPhone && window.STPhone.Apps && window.STPhone.Apps.Messages) {
+                const sender = isUser ? 'me' : 'them';
+                // 폰 앱 내부로 전송
+                window.STPhone.Apps.Messages.syncExternalMessage(sender, cleanText);
+            }
+        }
+    }
+})();
