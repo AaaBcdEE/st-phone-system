@@ -159,7 +159,24 @@ window.STPhone.Apps.Messages = (function() {
             .st-msg-bubble.me { align-self: flex-end; background: var(--pt-accent, #007aff); color: white; border-bottom-right-radius: 4px; }
             .st-msg-bubble.them { align-self: flex-start; background: var(--pt-card-bg, #e5e5ea); color: var(--pt-text-color, #000); border-bottom-left-radius: 4px; }
             .st-msg-image { max-width: 200px; border-radius: 12px; cursor: pointer; }
-/* 그룹챗 전용 말풍선 - 더 넓게 */
+
+            /* 번역 스타일 */
+            .st-msg-translation {
+                font-size: 12px;
+                color: var(--pt-sub-text, #666);
+                margin-top: 6px;
+                padding-top: 6px;
+                border-top: 1px dashed rgba(0,0,0,0.1);
+                line-height: 1.4;
+            }
+            .st-msg-original {
+                margin-bottom: 4px;
+            }
+            .st-msg-bubble.them .st-msg-translation {
+                border-top-color: rgba(0,0,0,0.1);
+            }
+                
+            /* 그룹챗 전용 말풍선 - 더 넓게 */
             .st-msg-wrapper .st-msg-bubble { max-width: 100%; }
             /* 입력창 영역 */
             .st-chat-input-area {
@@ -176,9 +193,18 @@ window.STPhone.Apps.Messages = (function() {
                 color: white; cursor: pointer; display: flex; align-items: center; justify-content: center;
                 font-size: 18px; flex-shrink: 0; transition: transform 0.1s, background 0.2s;
             }
-            .st-chat-send:active { transform: scale(0.95); }
+.st-chat-send:active { transform: scale(0.95); }
 
-            .st-chat-cam-btn {
+/* 번역 버튼 스타일 추가 */
+.st-chat-translate-user-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: #34c759; /* 초록색 배경 */
+    color: white; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0; transition: transform 0.1s, background 0.2s;
+}
+.st-chat-translate-user-btn:active { transform: scale(0.95); }
+
+.st-chat-cam-btn {
                 width: 40px; height: 40px; border-radius: 50%; border: none;
                 background: #e9e9ea; color: #666;
                 cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -388,10 +414,39 @@ window.STPhone.Apps.Messages = (function() {
         return 'st_phone_messages_' + context.chatId;
     }
     
-    function getGroupStorageKey() {
+function getGroupStorageKey() {
         const context = window.SillyTavern?.getContext?.();
         if (!context?.chatId) return null;
         return 'st_phone_groups_' + context.chatId;
+    }
+
+    // ========== 번역 캐시 저장소 ==========
+    function getTranslationStorageKey() {
+        const context = window.SillyTavern?.getContext?.();
+        if (!context?.chatId) return null;
+        return 'st_phone_translations_' + context.chatId;
+    }
+
+    function loadTranslations() {
+        const key = getTranslationStorageKey();
+        if (!key) return {};
+        try {
+            return JSON.parse(localStorage.getItem(key) || '{}');
+        } catch (e) { return {}; }
+    }
+
+    function saveTranslation(contactId, msgIndex, translatedText) {
+        const key = getTranslationStorageKey();
+        if (!key) return;
+        const translations = loadTranslations();
+        if (!translations[contactId]) translations[contactId] = {};
+        translations[contactId][msgIndex] = translatedText;
+        localStorage.setItem(key, JSON.stringify(translations));
+    }
+
+    function getTranslation(contactId, msgIndex) {
+        const translations = loadTranslations();
+        return translations[contactId]?.[msgIndex] || null;
     }
 
     // ========== 1:1 메시지 저장소 ==========
@@ -571,8 +626,9 @@ window.STPhone.Apps.Messages = (function() {
         }, 5000);
     }
 
-    // ========== 📩 메시지 수신 (알림 포함) ==========
-    function receiveMessage(contactId, text, imageUrl = null) {
+// ========== 📩 메시지 수신 (알림 포함) ==========
+// ========== 📩 메시지 수신 (알림 포함) ==========
+    async function receiveMessage(contactId, text, imageUrl = null) {
         // 1. 데이터에 저장하고 [번호표(newIdx)]를 발급받음
         const newIdx = addMessage(contactId, 'them', text, imageUrl);
 
@@ -588,23 +644,71 @@ window.STPhone.Apps.Messages = (function() {
         const contactName = contact?.name || '알 수 없음';
         const contactAvatar = contact?.avatar || DEFAULT_AVATAR;
 
-        // 4. 알림 처리
+        // 4. 번역 처리 (텍스트가 있고 번역 기능이 켜져있을 때)
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        let translatedText = null;
+        
+        if (text && settings.translateEnabled) {
+            // 번역 완료까지 대기
+            translatedText = await translateText(text);
+            if (translatedText) {
+                saveTranslation(contactId, newIdx, translatedText);
+            }
+        }
+
+        // 5. 알림 또는 화면 표시
         if (!isPhoneActive || !isViewingThisChat) {
             // 안 읽음 카운트 증가
             const unread = getUnreadCount(contactId) + 1;
             setUnreadCount(contactId, unread);
-
             updateMessagesBadge();
 
-            const preview = imageUrl ? '📷 사진' : (text?.substring(0, 50) || '새 메시지');
+            // 알림에는 번역된 텍스트 표시 (있으면)
+            const previewText = translatedText || text;
+            const preview = imageUrl ? '📷 사진' : (previewText?.substring(0, 50) || '새 메시지');
             showNotification(contactName, preview, contactAvatar, contactId, 'dm');
         } else {
-            // 5. [중요] 말풍선 추가할 때 번호표(newIdx)를 같이 넘김
-            appendBubble('them', text, imageUrl, newIdx);
+            // 6. [핵심] 번역이 완료된 후 말풍선 표시
+            appendBubble('them', text, imageUrl, newIdx, translatedText);
         }
     }
 
+    // [새 함수] 번역 후 말풍선 업데이트
+    async function translateAndUpdateBubble(contactId, msgIndex, originalText) {
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        const displayMode = settings.translateDisplayMode || 'both';
 
+        // 번역 실행
+        const translatedText = await translateText(originalText);
+        if (!translatedText) return;
+
+        // 번역 저장
+        saveTranslation(contactId, msgIndex, translatedText);
+
+        // 화면에 있는 해당 말풍선들 찾아서 업데이트
+        const $bubbles = $(`[data-idx="${msgIndex}"]`);
+        if ($bubbles.length === 0) return;
+
+        const lines = originalText.split('\n');
+        const translatedLines = translatedText.split('\n');
+
+        $bubbles.each(function(idx) {
+            const $bubble = $(this);
+            const originalLine = lines[idx]?.trim() || originalText.trim();
+            const translatedLine = translatedLines[idx]?.trim() || translatedText.trim();
+
+            let newContent = '';
+            if (displayMode === 'korean') {
+                // 한국어만 표시
+                newContent = translatedLine;
+            } else {
+                // 원문 + 번역 함께 표시
+                newContent = `<div class="st-msg-original">${originalLine}</div><div class="st-msg-translation">${translatedLine}</div>`;
+            }
+
+            $bubble.html(newContent);
+        });
+    }
     // 그룹 메시지 수신
     function receiveGroupMessage(groupId, senderId, senderName, text, imageUrl = null) {
         // 1. 데이터에 저장
@@ -886,13 +990,19 @@ window.STPhone.Apps.Messages = (function() {
         const $screen = window.STPhone.UI.getContentElement();
         $screen.empty();
 
-        const msgs = getMessages(contactId);
+const msgs = getMessages(contactId);
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         let msgsHtml = '';
 
         msgs.forEach((m, index) => {
             const side = m.sender === 'me' ? 'me' : 'them';
             // 상대방 메시지에만 클릭 이벤트를 위한 속성을 부여 (번호표인 data-idx는 하나지만, 말풍선은 여러개일 수 있음)
             const clickAttr = (side === 'them') ? `data-action="msg-option" data-idx="${index}" class="st-msg-bubble ${side} clickable" style="cursor:pointer;" title="옵션 보기"` : `class="st-msg-bubble ${side}"`;
+
+            // 저장된 번역 가져오기
+            const savedTranslation = (side === 'them') ? getTranslation(contactId, index) : null;
+            const translateEnabled = settings.translateEnabled && side === 'them' && savedTranslation;
+            const displayMode = settings.translateDisplayMode || 'both';
 
             // 1. 이미지 처리
             if (m.image) {
@@ -903,15 +1013,35 @@ window.STPhone.Apps.Messages = (function() {
             if (m.text) {
                 // 엔터로 잘라서 내용이 있는 것만 말풍선으로 만듦
                 const lines = m.text.split('\n');
-                lines.forEach(line => {
+                const translatedLines = savedTranslation ? savedTranslation.split('\n') : [];
+
+                lines.forEach((line, idx) => {
                     const trimmed = line.trim();
                     if(trimmed) {
-                        msgsHtml += `<div ${clickAttr}>${trimmed}</div>`;
+                        let bubbleContent = '';
+
+if (translateEnabled) {
+    // 줄 번호(idx)가 일치하는 번역 라인이 있을 때만 가져옵니다.
+    const translatedLine = translatedLines[idx]?.trim();
+
+    if (displayMode === 'korean' && translatedLine) {
+        bubbleContent = translatedLine;
+    } else if (translatedLine) {
+        // 번역이 있을 때만 원문 + 번역 표시
+        bubbleContent = `<div class="st-msg-original">${trimmed}</div><div class="st-msg-translation">${translatedLine}</div>`;
+    } else {
+        // 번역 라인이 부족하면 원문만 표시
+        bubbleContent = trimmed;
+    }
+} else {
+                            bubbleContent = trimmed;
+                        }
+
+                        msgsHtml += `<div ${clickAttr}>${bubbleContent}</div>`;
                     }
                 });
             }
         });
-
 
         $screen.append(`
             ${css}
@@ -931,11 +1061,12 @@ window.STPhone.Apps.Messages = (function() {
                     </div>
                 </div>
 
-                <div class="st-chat-input-area">
-                    <button class="st-chat-cam-btn" id="st-chat-cam">📷</button>
-                    <textarea class="st-chat-textarea" id="st-chat-input" placeholder="메시지" rows="1"></textarea>
-                    <button class="st-chat-send" id="st-chat-send">↑</button>
-                </div>
+<div class="st-chat-input-area">
+    <button class="st-chat-cam-btn" id="st-chat-cam">📷</button>
+    <textarea class="st-chat-textarea" id="st-chat-input" placeholder="메시지" rows="1"></textarea>
+    ${settings.translateEnabled ? '<button class="st-chat-translate-user-btn" id="st-chat-translate-user" title="영어로 번역">A/가</button>' : ''}
+    <button class="st-chat-send" id="st-chat-send">↑</button>
+</div>
 
                 <div class="st-photo-popup" id="st-photo-popup">
                     <div class="st-photo-box">
@@ -975,9 +1106,30 @@ window.STPhone.Apps.Messages = (function() {
                 sendMessage();
             }
         });
-        $('#st-chat-send').on('click', sendMessage);
+$('#st-chat-send').on('click', sendMessage);
 
-        $('#st-chat-cam').on('click', () => {
+// 내 메시지 번역 기능 추가
+$('#st-chat-translate-user').on('click', async function() {
+    const $input = $('#st-chat-input');
+    const text = $input.val().trim();
+    if (!text) return;
+
+    $(this).text('⏳'); // 처리 중 표시
+    
+    // 한국어를 영어로 번역하라는 특수한 프롬프트 전달
+// 설정에서 유저 전용 번역 프롬프트를 가져옴
+    const settings = window.STPhone.Apps.Settings.getSettings();
+    const prompt = settings.userTranslatePrompt || "Translate the following Korean text to English. Output ONLY the English translation.";
+    
+    const translated = await translateText(text, prompt);    
+    if (translated) {
+        $input.val(translated);
+        $input.trigger('input'); // 높이 자동 조절 트리거
+    }
+    $(this).text('A/가');
+});
+
+$('#st-chat-cam').on('click', () => {
             $('#st-photo-popup').css('display', 'flex');
             $('#st-photo-prompt').focus();
         });
@@ -1014,6 +1166,8 @@ window.STPhone.Apps.Messages = (function() {
     // ========== 그룹 채팅방 ==========
     function openGroupChat(groupId) {
         if (replyTimer) clearTimeout(replyTimer);
+
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
         currentGroupId = groupId;
         currentContactId = null;
@@ -1095,12 +1249,12 @@ window.STPhone.Apps.Messages = (function() {
                     </div>
                 </div>
 
-                <div class="st-chat-input-area">
-                    <button class="st-chat-cam-btn" id="st-chat-cam">📷</button>
-                    <textarea class="st-chat-textarea" id="st-chat-input" placeholder="메시지" rows="1"></textarea>
-                    <button class="st-chat-send" id="st-chat-send">↑</button>
-                </div>
-
+<div class="st-chat-input-area">
+    <button class="st-chat-cam-btn" id="st-chat-cam">📷</button>
+    <textarea class="st-chat-textarea" id="st-chat-input" placeholder="메시지" rows="1"></textarea>
+    ${settings.translateEnabled ? '<button class="st-chat-translate-user-btn" id="st-chat-translate-user" title="영어로 번역">A/가</button>' : ''}
+    <button class="st-chat-send" id="st-chat-send">↑</button>
+</div>
                 <div class="st-photo-popup" id="st-photo-popup">
                     <div class="st-photo-box">
                         <div style="font-weight:600;font-size:17px;text-align:center;">사진 보내기</div>
@@ -1131,9 +1285,28 @@ window.STPhone.Apps.Messages = (function() {
                 sendGroupMessage();
             }
         });
-        $('#st-chat-send').on('click', sendGroupMessage);
+$('#st-chat-send').on('click', sendGroupMessage);
 
-        $('#st-chat-cam').on('click', () => {
+// 내 메시지 번역 기능 추가 (그룹용)
+$('#st-chat-translate-user').on('click', async function() {
+    const $input = $('#st-chat-input');
+    const text = $input.val().trim();
+    if (!text) return;
+
+    $(this).text('⏳');
+// 설정에서 유저 전용 번역 프롬프트를 가져옴
+    const settings = window.STPhone.Apps.Settings.getSettings();
+    const prompt = settings.userTranslatePrompt || "Translate the following Korean text to English. Output ONLY the English translation.";
+    
+    const translated = await translateText(text, prompt);
+    if (translated) {
+        $input.val(translated);
+        $input.trigger('input');
+    }
+    $(this).text('A/가');
+});
+
+$('#st-chat-cam').on('click', () => {
             $('#st-photo-popup').css('display', 'flex');
             $('#st-photo-prompt').focus();
         });
@@ -1173,10 +1346,11 @@ window.STPhone.Apps.Messages = (function() {
         }
     }
 
-    // [중요] msgIndex 인자가 추가됨
-    function appendBubble(sender, text, imageUrl, msgIndex) {
+// [중요] msgIndex, translatedText 인자가 추가됨
+    function appendBubble(sender, text, imageUrl, msgIndex, translatedText = null) {
         const side = sender === 'me' ? 'me' : 'them';
         const $container = $('#st-chat-messages');
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
         // 상대방 메시지일 경우에만 클릭 이벤트 속성(data-idx) 부여
         const clickAttr = (sender === 'them' && msgIndex !== undefined && msgIndex !== null)
@@ -1190,13 +1364,36 @@ window.STPhone.Apps.Messages = (function() {
         }
 
         if (text) {
+            // 번역 모드 확인
+            const translateEnabled = settings.translateEnabled && sender === 'them' && translatedText;
+            const displayMode = settings.translateDisplayMode || 'both';
+
             // [중요] 엔터 기준으로 텍스트를 쪼갬
             const lines = text.split('\n');
-            lines.forEach(line => {
+            const translatedLines = translatedText ? translatedText.split('\n') : [];
+
+            lines.forEach((line, idx) => {
                 const trimmed = line.trim();
                 if(trimmed) {
+                    let bubbleContent = '';
+
+if (translateEnabled) {
+    // 줄 번호(idx)가 일치하는 번역 라인이 있을 때만 가져옵니다.
+    const translatedLine = translatedLines[idx]?.trim();
+
+    if (displayMode === 'korean' && translatedLine) {
+        bubbleContent = translatedLine;
+    } else if (translatedLine) {
+        bubbleContent = `<div class="st-msg-original">${trimmed}</div><div class="st-msg-translation">${translatedLine}</div>`;
+    } else {
+        bubbleContent = trimmed;
+    }
+} else {
+                        bubbleContent = trimmed;
+                    }
+
                     // 쪼개진 말풍선들 모두에게 똑같은 clickAttr(같은 번호표)를 붙임
-                    $container.find('#st-typing').before(`<div ${clickAttr}>${trimmed}</div>`);
+                    $container.find('#st-typing').before(`<div ${clickAttr}>${bubbleContent}</div>`);
                 }
             });
         }
@@ -1615,11 +1812,106 @@ If you don't want to reply (angry, busy, or indifferent), reply ONLY with: [IGNO
 Write the next SMS response.`;
     }
 
-    function getSlashCommandParser() {
+function getSlashCommandParser() {
         if (window.SlashCommandParser?.commands) return window.SlashCommandParser;
         const ctx = window.SillyTavern?.getContext?.();
         if (ctx?.SlashCommandParser?.commands) return ctx.SlashCommandParser;
         return null;
+    }
+
+// ========== 번역 기능 (SillyTavern 백엔드 API 사용) ==========
+// overridePrompt 인자를 추가하여 번역 방향을 바꿀 수 있게 합니다.
+async function translateText(originalText, overridePrompt = null) {
+    const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+    // 내 메시지 번역 버튼은 설정의 '번역 켜기' 유무와 상관없이 동작하도록 하려면 아래 줄을 수정하지 않아도 됩니다.
+    if (!settings.translateEnabled && !overridePrompt) return null;
+
+    const provider = settings.translateProvider || 'google';
+    const model = settings.translateModel || 'gemini-2.0-flash';
+    
+    // overridePrompt가 있으면 그것을 사용하고, 없으면 설정된 기본 프롬프트를 사용합니다.
+    const translatePrompt = overridePrompt || settings.translatePrompt ||
+    `You are a Korean translator. Translate the following English text to natural Korean. 
+    IMPORTANT: You must preserve the EXACT same number of line breaks (newlines) as the original text. 
+    Each line of English must have exactly one corresponding line of Korean translation. 
+    Do not merge or split lines. Output ONLY the translated text.\n\nText to translate:`;
+        try {
+            // SillyTavern의 getRequestHeaders 함수 가져오기
+            const getRequestHeaders = window.SillyTavern?.getContext?.()?.getRequestHeaders || 
+                                       (() => ({ 'Content-Type': 'application/json' }));
+
+            // 공급자별 chat_completion_source 설정
+            const sourceMap = {
+                'google': 'makersuite',
+                'vertexai': 'vertexai',
+                'openai': 'openai',
+                'claude': 'claude'
+            };
+            const chatCompletionSource = sourceMap[provider] || 'makersuite';
+
+            // 메시지 구성
+            const fullPrompt = `${translatePrompt}\n\n"${originalText}"`;
+            const messages = [{ role: 'user', content: fullPrompt }];
+
+            // 요청 파라미터
+            const parameters = {
+                model: model,
+                messages: messages,
+                temperature: 0.3,
+                stream: false,
+                chat_completion_source: chatCompletionSource,
+                max_tokens: 1000
+            };
+
+            // Vertex AI 특수 설정
+            if (provider === 'vertexai') {
+                parameters.vertexai_auth_mode = 'full';
+            }
+
+            // API 호출
+            const response = await fetch('/api/backends/chat-completions/generate', {
+                method: 'POST',
+                headers: { ...getRequestHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify(parameters)
+            });
+
+            if (!response.ok) {
+                console.error('[Messages] Translation API error:', response.status);
+                return null;
+            }
+
+            const data = await response.json();
+            
+            // 공급자별 결과 추출
+            let result;
+            switch (provider) {
+                case 'openai':
+                    result = data.choices?.[0]?.message?.content?.trim();
+                    break;
+                case 'claude':
+                    result = data.content?.[0]?.text?.trim();
+                    break;
+                case 'google':
+                case 'vertexai':
+                    result = data.candidates?.[0]?.content?.trim() || 
+                             data.choices?.[0]?.message?.content?.trim() || 
+                             data.text?.trim();
+                    break;
+                default:
+                    result = data.choices?.[0]?.message?.content?.trim();
+            }
+
+            // 따옴표 제거
+            if (result) {
+                result = result.replace(/^["']|["']$/g, '');
+            }
+
+            return result || null;
+
+        } catch (e) {
+            console.error('[Messages] Translation failed:', e);
+            return null;
+        }
     }
 
     // ========== [수정됨] 히든 로그 (AI 기억용) ==========
