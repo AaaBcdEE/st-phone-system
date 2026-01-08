@@ -695,3 +695,33 @@
 }
 
 
+/* =========================================================
+   🍎 아이폰 Safari 전용 (갤럭시에 영향 없음)
+   ========================================================= */
+@supports (-webkit-touch-callout: none) {
+    @media screen and (max-width: 768px) {
+        /* 아이폰 홈바 영역 추가 확보 */
+        #st-phone-content {
+            padding-bottom: calc(100px + env(safe-area-inset-bottom, 34px)) !important;
+        }
+        
+        .st-settings-app,
+        .st-messages-app,
+        .st-contacts-app,
+        .st-album-app,
+        .st-notes-app,
+        .st-music-app,
+        .st-weather-app,
+        .st-games-app {
+            padding-bottom: calc(120px + env(safe-area-inset-bottom, 34px)) !important;
+        }
+        
+        .st-home-grid {
+            padding-bottom: calc(100px + env(safe-area-inset-bottom, 34px)) !important;
+        }
+        
+        .st-phone-home-area {
+            bottom: calc(25px + env(safe-area-inset-bottom, 34px)) !important;
+        }
+    }
+}
