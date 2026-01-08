@@ -361,6 +361,7 @@ window.STPhone.Apps.Store = (function() {
             size: '1.2 MB',
             icon: `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`
         },
+        // 수정후 코드
         {
             id: 'games',
             name: '게임',
@@ -370,6 +371,16 @@ window.STPhone.Apps.Store = (function() {
             version: '1.0.0',
             size: '0.8 MB',
             icon: `<svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v2H6v-2H4v-2h2V9h2v2h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>`
+        },
+        {
+            id: 'calendar',
+            name: '캘린더',
+            bg: 'linear-gradient(135deg, #ff6b6b, #ee5a5a)',
+            category: '생산성',
+            description: 'AI 응답에 날짜/요일을 자동으로 표시하고, 기념일을 관리합니다. RP 날짜 추적 기능!',
+            version: '1.0.0',
+            size: '0.5 MB',
+            icon: `<svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7z"/></svg>`
         }
     ];
 
@@ -678,8 +689,12 @@ window.STPhone.Apps.Store = (function() {
             case 'music':
                 Apps.Music?.open();
                 break;
+            // 수정후 코드
             case 'games':
                 Apps.Games?.open();
+                break;
+            case 'calendar':
+                Apps.Calendar?.open();
                 break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');

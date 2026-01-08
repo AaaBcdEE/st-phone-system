@@ -175,36 +175,36 @@ window.STPhone.Apps.Camera = (function() {
         throw new Error("이미지 생성 명령어를 실행할 수 없습니다.\nSD 확장이 설치되어 있는지 확인해주세요.");
     }
 
-    
-
-async function generateDetailedPrompt(userInput) {
+    async function generateDetailedPrompt(userInput) {
         const parser = getSlashCommandParser();
-        if (!parser || !parser.commands) return userInput;
+        if (!parser || !parser.commands) {
+            return userInput;
+        }
 
         const genCmd = parser.commands['genraw'] || parser.commands['gen'];
-        if (!genCmd || typeof genCmd.callback !== 'function') return userInput;
+        if (!genCmd || typeof genCmd.callback !== 'function') {
+            return userInput;
+        }
 
         try {
-            // 1. 설정 및 유저 정보 가져오기
             const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-            const userName = settings.userName || "User";
-            const userTags = settings.userTags || "";
-            const cameraPromptTemplate = settings.cameraPrompt;
+            const userName = settings.userName || 'User';
+            const userTags = settings.userTags || '';
+            const cameraPromptTemplate = settings.cameraPrompt || '';
 
-            // 2. [수정 포인트] 연락처 앱(contacts.js)에서 모든 캐릭터 정보를 직접 가져옵니다.
-            const allContacts = window.STPhone.Apps.Contacts?.getAllContacts?.() || [];
-
-            // 3. AI에게 전달할 비주얼 라이브러리 작성
+            const allContacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
             let visualLibrary = `### Visual Tag Library\n`;
             visualLibrary += `1. [${userName} (User)]: ${userTags}\n`;
-            
-            // 불러온 모든 연락처의 이름과 태그를 목록에 추가합니다.
-            allContacts.forEach((contact, index) => {
-                const cTags = contact.tags || "default appearance";
-                visualLibrary += `${index + 2}. [${contact.name}]: ${cTags}\n`;
-            });
 
-            // 4. 최종 지시문 조립
+            let lineNumber = 2;
+            for (const contact of allContacts) {
+                const name = contact?.name;
+                const tags = contact?.tags;
+                if (!name || !tags) continue;
+                visualLibrary += `${lineNumber}. [${name}]: ${tags}\n`;
+                lineNumber++;
+            }
+
             const aiInstruction = `${cameraPromptTemplate}
 
 ${visualLibrary}
@@ -230,7 +230,7 @@ Example output format:
 
         return userInput;
     }
-    
+
     function open() {
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen || !$screen.length) return;

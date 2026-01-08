@@ -4,6 +4,80 @@ window.STPhone.Apps = window.STPhone.Apps || {};
 window.STPhone.Apps.Phone = (function() {
     'use strict';
 
+    // ========== Connection Profile을 사용한 AI 생성 함수 ==========
+    function getSlashCommandParser() {
+        return window.SillyTavern?.getContext()?.SlashCommandParser || window.SlashCommandParser;
+    }
+
+    function normalizeModelOutput(raw) {
+        if (raw == null) return '';
+        if (typeof raw === 'string') return raw;
+        if (typeof raw?.content === 'string') return raw.content;
+        if (typeof raw?.text === 'string') return raw.text;
+        const choiceContent = raw?.choices?.[0]?.message?.content;
+        if (typeof choiceContent === 'string') return choiceContent;
+        const dataContent = raw?.data?.content;
+        if (typeof dataContent === 'string') return dataContent;
+        try {
+            return JSON.stringify(raw);
+        } catch (e) {
+            return String(raw);
+        }
+    }
+
+    async function generateWithProfile(prompt, maxTokens = 1024) {
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        const profileId = settings.connectionProfileId;
+        const debugId = Date.now();
+        const startedAt = performance?.now?.() || 0;
+        
+        try {
+            const context = window.SillyTavern?.getContext?.();
+            if (!context) throw new Error('SillyTavern context not available');
+            
+            // Connection Profile이 설정되어 있으면 ConnectionManager 사용
+            if (profileId) {
+                const connectionManager = context.ConnectionManagerRequestService;
+                if (connectionManager && typeof connectionManager.sendRequest === 'function') {
+                    console.debug('📞 [Phone][AI] sendRequest start', { debugId, profileId, maxTokens, promptLen: String(prompt || '').length });
+                    
+                    const overrides = {};
+                    if (maxTokens) {
+                        overrides.max_tokens = maxTokens;
+                    }
+                    
+                    const result = await connectionManager.sendRequest(
+                        profileId,
+                        [{ content: prompt, role: 'user' }],
+                        maxTokens,
+                        {},
+                        overrides
+                    );
+
+                    const text = normalizeModelOutput(result);
+                    const elapsedMs = (performance?.now?.() || 0) - startedAt;
+                    console.debug('📞 [Phone][AI] sendRequest done', { debugId, elapsedMs: Math.round(elapsedMs), resultType: typeof result, outLen: String(text || '').length });
+                    return String(text || '').trim();
+                }
+            }
+            
+            // Fallback: 기존 genraw/gen 명령어 사용
+            const parser = getSlashCommandParser();
+            const genCmd = parser?.commands['genraw'] || parser?.commands['gen'];
+            if (!genCmd) throw new Error('AI 명령어를 찾을 수 없습니다');
+            
+            const result = await genCmd.callback({ quiet: 'true' }, prompt);
+            const elapsedMs = (performance?.now?.() || 0) - startedAt;
+            console.debug('📞 [Phone][AI] slash gen done', { debugId, elapsedMs: Math.round(elapsedMs), outLen: String(result || '').length });
+            return String(result || '').trim();
+            
+        } catch (e) {
+            const elapsedMs = (performance?.now?.() || 0) - startedAt;
+            console.error('[Phone] generateWithProfile 실패:', { debugId, elapsedMs: Math.round(elapsedMs), profileId, maxTokens, error: e });
+            throw e;
+        }
+    }
+
     const css = `
         <style>
             .st-phone-app {
@@ -308,6 +382,14 @@ window.STPhone.Apps.Phone = (function() {
         localStorage.setItem(key, JSON.stringify(callHistory));
     }
 
+    function deleteHistoryEntry(index) {
+        loadHistory();
+        if (!Number.isInteger(index)) return;
+        if (index < 0 || index >= callHistory.length) return;
+        callHistory.splice(index, 1);
+        saveHistory();
+    }
+
     function addToHistory(contactId, type) {
         loadHistory();
         const contact = window.STPhone.Apps?.Contacts?.getContact(contactId);
@@ -402,6 +484,7 @@ window.STPhone.Apps.Phone = (function() {
                         <div class="st-call-time">${formatTime(h.timestamp)}</div>
 
                         <div style="display:flex; gap:5px;">
+                            <button class="st-call-btn" style="background:#ff3b30;" data-action="delete-history" data-index="${index}">🗑️</button>
                             ${hasLog ? `<button class="st-call-btn" style="background:#555;" data-action="view-log" data-index="${index}">📜</button>` : ''}
                             <button class="st-call-btn" data-id="${h.contactId}" data-action="call">📞</button>
                         </div>
@@ -461,6 +544,13 @@ window.STPhone.Apps.Phone = (function() {
             const index = $(this).data('index');
             openLogViewer(index);
         });
+
+        $('[data-action="delete-history"]').on('click', function(e) {
+            e.stopPropagation();
+            const index = Number($(this).data('index'));
+            deleteHistoryEntry(index);
+            open();
+        });
     }
 
 
@@ -504,6 +594,7 @@ window.STPhone.Apps.Phone = (function() {
 
     // 2단계 교체 코드: apps/phone.js
     function receiveCall(contactInput) {
+        console.debug('📞 [Phone] receiveCall invoked', { inputType: typeof contactInput, hasId: !!contactInput?.id, name: contactInput?.name });
         // [수정됨] 입력값이 ID인 경우와 객체(임시연락처)인 경우를 모두 처리
         let contact = null;
         if (typeof contactInput === 'object') {
@@ -613,12 +704,6 @@ window.STPhone.Apps.Phone = (function() {
     // [NEW] AI에게 부재중/거절 알림 전송 함수
     async function triggerAINotification(contact, reason, userName) {
         try {
-            const parser = getSlashCommandParser();
-            if (!parser?.commands) return;
-            
-            const genCmd = parser.commands['genraw'] || parser.commands['gen'];
-            if (!genCmd) return;
-
             // 채팅 로그 가져오기
             let mainChatHistory = "";
             const ctx = window.SillyTavern?.getContext() || {};
@@ -656,7 +741,7 @@ Response should be 1-2 sentences max.
 ### Response Format (JSON Only)
 {"text": "YOUR_SMS_MESSAGE"}`;
 
-            const response = await genCmd.callback({ quiet: 'true' }, prompt);
+            const response = await generateWithProfile(prompt);
             let rawResult = String(response).trim();
 
             // JSON 파싱
@@ -758,22 +843,18 @@ Response should be 1-2 sentences max.
             $('.st-calling-avatar').css('animation', 'pulse 1.5s infinite');
 
             try {
-                const parser = getSlashCommandParser();
-                const genCmd = parser?.commands?.['genraw'] || parser?.commands?.['gen'];
-
-                if (genCmd) {
-                    let mainChatHistory = "";
-                    let userName = "User";
-                    if (window.SillyTavern && window.SillyTavern.getContext) {
-                        const ctx = window.SillyTavern.getContext();
-                        userName = ctx.name2 || "User";
-                        if (ctx.chatId) {
-                            try {
-                                const cfg = JSON.parse(localStorage.getItem('st_phone_config_' + ctx.chatId) || '{}');
-                                if (cfg.userName) userName = cfg.userName;
-                            } catch(e) {}
-                        }
-                        if (ctx.chat && ctx.chat.length > 0) {
+                let mainChatHistory = "";
+                let userName = "User";
+                if (window.SillyTavern && window.SillyTavern.getContext) {
+                    const ctx = window.SillyTavern.getContext();
+                    userName = ctx.name2 || "User";
+                    if (ctx.chatId) {
+                        try {
+                            const cfg = JSON.parse(localStorage.getItem('st_phone_config_' + ctx.chatId) || '{}');
+                            if (cfg.userName) userName = cfg.userName;
+                        } catch(e) {}
+                    }
+                    if (ctx.chat && ctx.chat.length > 0) {
                             mainChatHistory = ctx.chat.slice(-15).map(m => `${m.name}: ${m.mes}`).join('\n');
                         }
                     }
@@ -800,7 +881,7 @@ Analyze the relationship and current situation, then output a JSON object define
                         .replace(/\{\{user\}\}/g, userName)
                     + `\n\n### Context (Recent Chat)\n${mainChatHistory}`;
 
-                    const result = await genCmd.callback({ quiet: 'true' }, oneShotPrompt);
+                    const result = await generateWithProfile(oneShotPrompt);
                     let decision = { pickup: true, content: "Hello?" };
                     try {
                         const match = String(result).match(/\{[\s\S]*\}/);
@@ -845,7 +926,6 @@ Analyze the relationship and current situation, then output a JSON object define
                         callDuration++;
                         $('#st-call-status').text(`통화 중 ${formatDuration(callDuration)}`);
                     }, 1000);
-                }
             } catch (err) {
                 // 에러 처리
                 currentCall.startTime = Date.now();
@@ -922,11 +1002,10 @@ Analyze the relationship and current situation, then output a JSON object define
 
     // 3단계 교체 코드: apps/phone.js
     async function generateAIResponse(contact, userText) {
+        // [NEW] 폰 앱에서 생성 중임을 표시
+        window.STPhone.isPhoneGenerating = true;
+
         try {
-            const parser = getSlashCommandParser();
-            if (!parser?.commands) throw new Error('no parser');
-            const genCmd = parser.commands['genraw'] || parser.commands['gen'];
-            if (!genCmd) throw new Error('no gen');
 
             /* 정보 수집 시작 */
             let ctx = window.SillyTavern?.getContext() || {};
@@ -945,15 +1024,26 @@ Analyze the relationship and current situation, then output a JSON object define
                 } catch(e) {}
             }
 
-            /* [핵심 기능] 캐릭터 진짜 데이터 가져오기 (실리태번 연동) */
-            // 기본값은 연락처 앱에 저장된 내용
-            let charRealData = `Name: ${contact.name}\nPersonality: ${contact.persona || 'Unknown'}`;
+            // [NEW] 캘린더 기념일 안전하게 가져오기
+            let calendarEventsPrompt = '';
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('calendar')) {
+                    const Calendar = window.STPhone?.Apps?.Calendar;
+                    if (Calendar && Calendar.isCalendarEnabled() && typeof Calendar.getEventsOnlyPrompt === 'function') {
+                        const eventTxt = Calendar.getEventsOnlyPrompt();
+                        if (eventTxt) calendarEventsPrompt = eventTxt;
+                    }
+                }
+            } catch (calErr) {
+                console.warn('[Phone] 캘린더 프롬프트 로드 실패(무시됨):', calErr);
+            }
 
-            // 실리태번에서 현재 로드된 캐릭터 정보 훔쳐오기
+            /* 캐릭터 데이터 가져오기 */
+            let charRealData = `Name: ${contact.name}\nPersonality: ${contact.persona || 'Unknown'}`;
             if (ctx.characters && ctx.characterId !== undefined) {
                 const liveChar = ctx.characters[ctx.characterId];
                 if (liveChar && liveChar.name === contact.name) {
-                    // description과 personality, scenario 등을 모두 합쳐서 강력한 설정 생성
                     charRealData = `
 ### Full Character Definition
 Name: ${liveChar.name}
@@ -961,26 +1051,21 @@ Description: ${liveChar.description || ''}
 Personality: ${liveChar.personality || ''}
 Scenario: ${liveChar.scenario || ''}
 `;
-                    console.log(`📞 [Phone] Fetched live character data for ${contact.name}`);
                 }
             }
-            /* 정보 수집 끝 */
 
-            /* [수정됨] 상황에 따라 프롬프트를 다르게 작성합니다 */
+            /* 상황 판단 */
             let situationInstruction = "";
             let currentTurnLine = "";
 
             if (userText === null) {
-                // 상황 1: 방금 전화 연결됨 (내가 건 상황). AI가 먼저 여보세요? 해야 함.
                 situationInstruction = `Situation: ${userSettings.name} just called ${contact.name}. ${contact.name} picks up the phone.`;
                 currentTurnLine = `(Waiting for ${contact.name}'s first greeting...)`;
             } else {
-                // 상황 2: 대화 도중. 유저가 말을 함.
                 situationInstruction = `Situation: Ongoing Phone Call between ${contact.name} and ${userSettings.name}.`;
                 currentTurnLine = `${userSettings.name}: "${userText}"`;
             }
 
-            // 설정에서 전화 대화 프롬프트 가져오기
             const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
             const phoneCallRules = settings.phoneCallPrompt || `### 📞 Strict Phone Call Rules (MUST FOLLOW)
 1. **Language:** Respond ONLY in **Korean**.
@@ -1007,15 +1092,14 @@ ${phoneCallRules}
 
 ### Context (Chat History)
 ${mainChatHistory}
+${calendarEventsPrompt}
 
 ### Current Turn
 ${currentTurnLine}
 `;
 
-
-
             /* 생성 요청 */
-            const response = await genCmd.callback({ quiet: 'true' }, prompt);
+            const response = await generateWithProfile(prompt);
             let rawResult = String(response).trim();
 
             let aiText = rawResult;
@@ -1026,7 +1110,6 @@ ${currentTurnLine}
 
             aiText = aiText.replace(/"/g, '').trim();
 
-            // 끊기 태그 감지 및 제거
             let shouldHangUp = false;
             if (aiText.includes('[HANGUP]')) {
                 shouldHangUp = true;
@@ -1039,15 +1122,14 @@ ${currentTurnLine}
             currentLog.push({ sender: contact.name, text: aiText });
             if (typeof addHiddenLog === 'function') {
                 const status = shouldHangUp ? '(Hung up)' : '';
-            // [수정됨] 대괄호와 이모티콘으로 감싸서 숨기기 쉽게 만듦
-            addHiddenLog(contact.name, `[📞 ${contact.name} on Phone]: ${aiText} ${status}`);
+                addHiddenLog(contact.name, `[📞 ${contact.name} on Phone]: ${aiText} ${status}`);
             }
 
-            /* 화면 출력 및 종료 스케줄링 */
+            /* 화면 출력 */
             appendCallMessage('them', aiText, () => {
                 if (shouldHangUp) {
                     $('#st-call-status').text('Call Ended').css('color', '#ff3b30');
-                    setTimeout(() => endCall(null, 'ai'), 1000); // AI가 끊음
+                    setTimeout(() => endCall(null, 'ai'), 1000);
                 } else {
                     $('#st-call-input-area').fadeIn(200);
                     $('#st-call-input').val('').focus();
@@ -1058,8 +1140,12 @@ ${currentTurnLine}
             console.error(e);
             appendCallMessage('them', '...');
             $('#st-call-input-area').fadeIn();
+        } finally {
+            // [NEW] 플래그 해제
+            window.STPhone.isPhoneGenerating = false;
         }
     }
+
 
 
 

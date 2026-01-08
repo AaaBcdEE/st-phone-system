@@ -190,11 +190,148 @@ window.STPhone.Apps.Contacts = (function() {
 
     let contacts = [];
     const DEFAULT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png';
+    
+    // 특수 ID: 봇을 위한 고정 ID (유저는 설정의 프로필에서 관리)
+    const BOT_CONTACT_ID = '__st_char__';
 
     function getStorageKey() {
         const context = window.SillyTavern?.getContext?.();
         if (!context?.chatId) return null;
         return 'st_phone_contacts_' + context.chatId;
+    }
+
+    // SillyTavern 매크로를 해석하는 함수
+    async function resolveMacro(text) {
+        if (!text) return '';
+        const ctx = window.SillyTavern?.getContext?.();
+        if (!ctx?.substituteParams) return text;
+        try {
+            return await ctx.substituteParams(text);
+        } catch (e) {
+            return text;
+        }
+    }
+
+    // 캐릭터(봇) 정보 가져오기
+    async function getCharacterInfo() {
+        const ctx = window.SillyTavern?.getContext?.();
+        if (!ctx) return null;
+        
+        try {
+            const name = await resolveMacro('{{char}}');
+            const description = await resolveMacro('{{description}}');
+            
+            // 아바타 가져오기
+            let avatar = '';
+            if (ctx.characters && ctx.characterId !== undefined) {
+                const char = ctx.characters[ctx.characterId];
+                if (char?.avatar) {
+                    avatar = `/characters/${char.avatar}`;
+                }
+            }
+            
+            return { name, description, avatar };
+        } catch (e) {
+            console.error('[Contacts] 캐릭터 정보 가져오기 실패:', e);
+            return null;
+        }
+    }
+
+    // 유저(페르소나) 정보 가져오기
+    async function getUserInfo() {
+        const ctx = window.SillyTavern?.getContext?.();
+        if (!ctx) return null;
+        
+        try {
+            const name = await resolveMacro('{{user}}');
+            const persona = await resolveMacro('{{persona}}');
+            
+            // 유저 아바타 가져오기
+            let avatar = '';
+            if (ctx.user_avatar) {
+                avatar = `/User Avatars/${ctx.user_avatar}`;
+            }
+            
+            return { name, persona, avatar };
+        } catch (e) {
+            console.error('[Contacts] 유저 정보 가져오기 실패:', e);
+            return null;
+        }
+    }
+
+    // 봇 연락처 자동 생성/업데이트
+    async function syncBotContact() {
+        const charInfo = await getCharacterInfo();
+        if (!charInfo || !charInfo.name) return null;
+        
+        loadContacts();
+        let botContact = contacts.find(c => c.id === BOT_CONTACT_ID);
+        
+        if (!botContact) {
+            // 새로 생성
+            botContact = {
+                id: BOT_CONTACT_ID,
+                name: charInfo.name,
+                avatar: charInfo.avatar || '',
+                persona: charInfo.description || '',
+                tags: '',
+                isAutoSync: true,
+                createdAt: Date.now()
+            };
+            contacts.unshift(botContact); // 맨 앞에 추가
+            saveContacts();
+            console.log('[Contacts] 봇 연락처 자동 생성:', charInfo.name);
+        } else {
+            // 업데이트 (이름, 아바타, 설명 동기화)
+            let updated = false;
+            if (botContact.isAutoSync !== false) {
+                if (botContact.name !== charInfo.name) {
+                    botContact.name = charInfo.name;
+                    updated = true;
+                }
+                if (charInfo.avatar && botContact.avatar !== charInfo.avatar) {
+                    botContact.avatar = charInfo.avatar;
+                    updated = true;
+                }
+                if (charInfo.description && botContact.persona !== charInfo.description) {
+                    botContact.persona = charInfo.description;
+                    updated = true;
+                }
+                if (updated) {
+                    saveContacts();
+                    console.log('[Contacts] 봇 연락처 업데이트:', charInfo.name);
+                }
+            }
+        }
+        return botContact;
+    }
+
+    // 설정에서 유저 프로필 정보를 SillyTavern과 동기화
+    async function syncUserProfileToSettings() {
+        const userInfo = await getUserInfo();
+        if (!userInfo || !userInfo.name) return;
+        
+        const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        
+        // 설정의 프로필이 비어있으면 SillyTavern 정보로 채우기
+        if (!settings.userName || settings.userName === 'User') {
+            window.STPhone.Apps?.Settings?.updateSetting?.('userName', userInfo.name);
+        }
+        if (!settings.userPersonality && userInfo.persona) {
+            window.STPhone.Apps?.Settings?.updateSetting?.('userPersonality', userInfo.persona);
+        }
+        if (!settings.userAvatar && userInfo.avatar) {
+            window.STPhone.Apps?.Settings?.updateSetting?.('userAvatar', userInfo.avatar);
+        }
+        
+        console.log('[Contacts] 설정 프로필에 유저 정보 동기화됨');
+    }
+
+    // 모든 자동 연락처 동기화 (봇만)
+    async function syncAutoContacts() {
+        await syncBotContact();
+        // 유저 정보는 설정 프로필에 동기화
+        await syncUserProfileToSettings();
     }
 
     // [NEW] 캐릭터 ID 기반 키 (다른 채팅방에서도 같은 캐릭터면 공유)
@@ -232,6 +369,22 @@ window.STPhone.Apps.Contacts = (function() {
         try {
             return JSON.parse(localStorage.getItem(key) || '[]');
         } catch (e) { return []; }
+    }
+
+    function deleteContactForCharacterByName(name) {
+        const key = getCharacterStorageKey();
+        if (!key || !name) return false;
+
+        try {
+            const charContacts = JSON.parse(localStorage.getItem(key) || '[]');
+            const next = charContacts.filter(c => (c?.name || '').toLowerCase() !== String(name).toLowerCase());
+            if (next.length === charContacts.length) return false;
+            localStorage.setItem(key, JSON.stringify(next));
+            return true;
+        } catch (e) {
+            console.error('[Contacts] 캐릭터별 삭제 실패:', e);
+            return false;
+        }
     }
 
     function loadContacts() {
@@ -311,15 +464,32 @@ window.STPhone.Apps.Contacts = (function() {
         loadContacts();
         const i = contacts.findIndex(c => c.id === id);
         if (i >= 0) {
+            const deletedContact = contacts[i];
             contacts.splice(i, 1);
             saveContacts();
+
+            if (deletedContact?.persistForChar) {
+                deleteContactForCharacterByName(deletedContact.name);
+            }
             return true;
         }
         return false;
     }
 
-    function open() {
+    async function open() {
+        // 먼저 봇 연락처 자동 동기화
+        await syncAutoContacts();
+        
         loadContacts();
+        
+        // 기존 유저 연락처(__st_user__) 자동 정리
+        const userContactIndex = contacts.findIndex(c => c.id === '__st_user__');
+        if (userContactIndex >= 0) {
+            contacts.splice(userContactIndex, 1);
+            saveContacts();
+            console.log('[Contacts] 기존 유저 연락처 정리됨');
+        }
+        
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen?.length) return;
         $screen.empty();
@@ -329,11 +499,15 @@ window.STPhone.Apps.Contacts = (function() {
             listHtml = `<div class="st-contacts-empty"><div style="font-size:48px;opacity:0.5;margin-bottom:15px;">👤</div><div>연락처가 없습니다</div></div>`;
         } else {
             contacts.forEach(c => {
+                // 자동 동기화 연락처 표시 (봇만 해당)
+                const isAutoContact = c.id === BOT_CONTACT_ID;
+                const syncBadge = isAutoContact ? '<span style="font-size:10px;background:#007aff;color:white;padding:2px 5px;border-radius:8px;margin-left:5px;">자동</span>' : '';
+                
                 listHtml += `
                     <div class="st-contact-item" data-id="${c.id}">
                         <img class="st-contact-avatar" src="${c.avatar || DEFAULT_AVATAR}" onerror="this.src='${DEFAULT_AVATAR}'">
                         <div class="st-contact-info">
-                            <div class="st-contact-name">${c.name}</div>
+                            <div class="st-contact-name">${c.name}${syncBadge}</div>
                             <div class="st-contact-preview">${c.persona?.substring(0, 30) || ''}</div>
                         </div>
                         <div class="st-contact-actions">
@@ -377,14 +551,31 @@ window.STPhone.Apps.Contacts = (function() {
 
     function openEdit(id) {
         const c = id ? getContact(id) : null;
+        const isAutoContact = c && c.id === BOT_CONTACT_ID;
+        const autoSyncEnabled = c?.isAutoSync !== false;
+        
+        // 자동 동기화 연락처용 안내 메시지 (봇만 해당)
+        const autoSyncNotice = isAutoContact ? `
+            <div class="st-contact-edit-group" style="background:rgba(52,199,89,0.1); margin-bottom:15px;">
+                <div class="st-contact-edit-row" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <div class="st-contact-edit-label" style="color:var(--pt-text-color); font-weight:600;">🔄 자동 동기화</div>
+                        <div style="font-size:11px; color:var(--pt-sub-text);">SillyTavern 캐릭터와 자동 연동</div>
+                    </div>
+                    <input type="checkbox" class="st-switch" id="st-edit-autosync" ${autoSyncEnabled ? 'checked' : ''}>
+                </div>
+            </div>
+        ` : '';
+        
         const html = `
             <div class="st-contact-edit" id="st-contact-edit">
                 <div class="st-contact-edit-header">
                     <button class="st-contact-edit-btn" id="st-edit-cancel">취소</button>
-                    <span style="font-weight:600;">${c ? '편집' : '새 연락처'}</span>
-                    <button class="st-contact-edit-btn delete" id="st-edit-delete" style="visibility:${c ? 'visible' : 'hidden'}">삭제</button>
+                    <span style="font-weight:600;">${c ? '편집' : '새 연락처'}${isAutoContact ? ' (자동)' : ''}</span>
+                    <button class="st-contact-edit-btn delete" id="st-edit-delete" style="visibility:${c && !isAutoContact ? 'visible' : 'hidden'}">삭제</button>
                 </div>
                 <div class="st-contact-edit-content">
+                    ${autoSyncNotice}
                     <div class="st-contact-edit-avatar-wrap">
                         <img class="st-contact-edit-avatar" id="st-edit-avatar" src="${c?.avatar || DEFAULT_AVATAR}" onerror="this.src='${DEFAULT_AVATAR}'">
                         <label class="st-contact-edit-avatar-label" for="st-edit-avatar-file">사진 변경</label>
@@ -392,8 +583,8 @@ window.STPhone.Apps.Contacts = (function() {
                     </div>
                     <div class="st-contact-edit-group">
                         <div class="st-contact-edit-row">
-                            <div class="st-contact-edit-label">이름</div>
-                            <input class="st-contact-edit-input" id="st-edit-name" value="${c?.name || ''}" placeholder="이름">
+                            <div class="st-contact-edit-label">이름${isAutoContact && autoSyncEnabled ? ' (자동 동기화)' : ''}</div>
+                            <input class="st-contact-edit-input" id="st-edit-name" value="${c?.name || ''}" placeholder="이름" ${isAutoContact && autoSyncEnabled ? 'readonly style="opacity:0.7"' : ''}>
                         </div>
                     </div>
                     <div class="st-contact-edit-group">
@@ -423,11 +614,14 @@ window.STPhone.Apps.Contacts = (function() {
         $('.st-contacts-app').append(html);
 
         $('#st-edit-cancel').on('click', () => $('#st-contact-edit').remove());
-        $('#st-edit-delete').on('click', () => {
+        $('#st-edit-delete').on('click', async () => {
             if (c && confirm('삭제하시겠습니까?')) {
-                deleteContactById(c.id);
+                const deleted = deleteContactById(c.id);
                 $('#st-contact-edit').remove();
-                open();
+                if (deleted) {
+                    toastr.success('연락처가 삭제되었습니다');
+                }
+                await open();
             }
         });
 $('#st-edit-avatar-file').on('change', function(e) {
@@ -482,6 +676,8 @@ $('#st-edit-avatar-file').on('change', function(e) {
             const name = $('#st-edit-name').val().trim();
             if (!name) { toastr.warning('이름을 입력하세요'); return; }
             const persistForChar = $('#st-edit-persist').is(':checked');
+            const isAutoSync = $('#st-edit-autosync').length ? $('#st-edit-autosync').is(':checked') : undefined;
+            
             const data = {
                 name,
                 avatar: $('#st-edit-avatar').attr('src'),
@@ -489,6 +685,12 @@ $('#st-edit-avatar-file').on('change', function(e) {
                 tags: $('#st-edit-tags').val().trim(),
                 persistForChar: persistForChar  // [NEW] 캐릭터별 유지 여부
             };
+            
+            // 자동 동기화 연락처의 경우 isAutoSync 옵션 저장
+            if (isAutoSync !== undefined) {
+                data.isAutoSync = isAutoSync;
+            }
+            
             if (c) updateContact(c.id, data);
             else addContact(data);
             
@@ -500,7 +702,32 @@ $('#st-edit-avatar-file').on('change', function(e) {
             open();
             toastr.success('저장되었습니다');
         });
+        
+        // 자동 동기화 토글 시 이름 필드 활성화/비활성화
+        $('#st-edit-autosync').on('change', function() {
+            const enabled = $(this).is(':checked');
+            if (enabled) {
+                $('#st-edit-name').attr('readonly', true).css('opacity', '0.7');
+            } else {
+                $('#st-edit-name').removeAttr('readonly').css('opacity', '1');
+            }
+        });
     }
 
-    return { open, getContact, getAllContacts, addContact, updateContact, deleteContact: deleteContactById, loadContacts };
+    // 봇 연락처 ID 가져오기 (외부에서 사용)
+    function getBotContactId() {
+        return BOT_CONTACT_ID;
+    }
+
+    return { 
+        open, 
+        getContact, 
+        getAllContacts, 
+        addContact, 
+        updateContact, 
+        deleteContact: deleteContactById, 
+        loadContacts,
+        syncAutoContacts,
+        getBotContactId
+    };
 })();
