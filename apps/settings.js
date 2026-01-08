@@ -95,19 +95,19 @@ Analyze the relationship and current situation, then output a JSON object define
 {"text": "대사_입력"}`,
 
         // [카메라 앱 프롬프트]
+        // [카메라 앱 프롬프트]
         cameraPrompt: `[System] You are an expert image prompt generator for Stable Diffusion.
-Convert the user's simple description into a detailed, high-quality image generation prompt.
+Convert the user's simple description into a detailed, high-quality image prompt.
 
 Rules:
-1. Output ONLY a single <pic prompt="..."> tag, nothing else
-2. The prompt inside should be in English
-3. Include artistic style, lighting, composition details
-4. Keep it under 200 characters
-5. Make it vivid and specific
+1. Identify all characters mentioned in the request from the [Visual Tag Library] and use their tags.
+2. If multiple characters are mentioned, combine their tags naturally.
+3. Output ONLY a single <pic prompt="..."> tag, nothing else.
+4. The prompt inside should be in English, descriptive, and vivid.
+5. Keep it under 250 characters.
 
 Example output format:
-<pic prompt="a fluffy orange cat sleeping on a velvet couch, warm afternoon sunlight, cozy living room, soft focus, photorealistic">`,
-
+<pic prompt="a fluffy orange cat, warm sunlight, soft focus">`,
         // [사진 메시지 프롬프트]
         photoMessagePrompt: `### Background Story (Chat Log)
 """

@@ -175,39 +175,46 @@ window.STPhone.Apps.Camera = (function() {
         throw new Error("이미지 생성 명령어를 실행할 수 없습니다.\nSD 확장이 설치되어 있는지 확인해주세요.");
     }
 
-    async function generateDetailedPrompt(userInput) {
+    
+
+async function generateDetailedPrompt(userInput) {
         const parser = getSlashCommandParser();
-        if (!parser || !parser.commands) {
-            return userInput;
-        }
+        if (!parser || !parser.commands) return userInput;
 
         const genCmd = parser.commands['genraw'] || parser.commands['gen'];
-        if (!genCmd || typeof genCmd.callback !== 'function') {
-            return userInput;
-        }
+        if (!genCmd || typeof genCmd.callback !== 'function') return userInput;
 
         try {
-            // 설정에서 카메라 프롬프트 가져오기
+            // 1. 설정 및 유저 정보 가져오기
             const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
-            const cameraPromptTemplate = settings.cameraPrompt || `[System] You are an expert image prompt generator for Stable Diffusion.
-Convert the user's simple description into a detailed, high-quality image generation prompt.
+            const userName = settings.userName || "User";
+            const userTags = settings.userTags || "";
+            const cameraPromptTemplate = settings.cameraPrompt;
 
-Rules:
-1. Output ONLY a single <pic prompt="..."> tag, nothing else
-2. The prompt inside should be in English
-3. Include artistic style, lighting, composition details
-4. Keep it under 200 characters
-5. Make it vivid and specific
+            // 2. [수정 포인트] 연락처 앱(contacts.js)에서 모든 캐릭터 정보를 직접 가져옵니다.
+            const allContacts = window.STPhone.Apps.Contacts?.getAllContacts?.() || [];
 
-Example output format:
-<pic prompt="a fluffy orange cat sleeping on a velvet couch, warm afternoon sunlight, cozy living room, soft focus, photorealistic">`;
+            // 3. AI에게 전달할 비주얼 라이브러리 작성
+            let visualLibrary = `### Visual Tag Library\n`;
+            visualLibrary += `1. [${userName} (User)]: ${userTags}\n`;
+            
+            // 불러온 모든 연락처의 이름과 태그를 목록에 추가합니다.
+            allContacts.forEach((contact, index) => {
+                const cTags = contact.tags || "default appearance";
+                visualLibrary += `${index + 2}. [${contact.name}]: ${cTags}\n`;
+            });
 
-            const aiInstruction = cameraPromptTemplate + `
+            // 4. 최종 지시문 조립
+            const aiInstruction = `${cameraPromptTemplate}
 
+${visualLibrary}
+
+### Task
 User's request: "${userInput}"
+Based on the Library, identify characters and use their tags.
 
 Example output format:
-<pic prompt="a fluffy orange cat sleeping on a velvet couch, warm afternoon sunlight, cozy living room, soft focus, photorealistic">`;
+<pic prompt="tags, comma, separated">`;
 
             const aiResponse = await genCmd.callback({ quiet: 'true' }, aiInstruction);
             
@@ -223,7 +230,7 @@ Example output format:
 
         return userInput;
     }
-
+    
     function open() {
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen || !$screen.length) return;
