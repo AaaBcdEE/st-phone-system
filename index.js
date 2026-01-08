@@ -1,9 +1,13 @@
 (function() {
     'use strict';
 
-    const EXTENSION_NAME = 'ST Phone System';
+const EXTENSION_NAME = 'ST Phone System';
     const EXTENSION_FOLDER = 'st-phone-system';
     const BASE_PATH = `/scripts/extensions/third-party/${EXTENSION_FOLDER}`;
+
+    // 타임스탬프 기능용 상태 추적
+    let lastMessageWasHiddenLog = false;  // 마지막 메시지가 히든로그였는지
+    let needsTimestampOnNextPhoneMsg = false;  // 다음 폰 메시지에 타임스탬프 필요한지
 
     function loadModule(fileName) {
         return new Promise((resolve, reject) => {
@@ -201,21 +205,34 @@
         }
     }
 
-    // 메시지 분석 및 폰으로 전송 (동기화)
+// 메시지 분석 및 폰으로 전송 (동기화)
     function processSync(node) {
-                if (window.STPhone.Apps.Settings && window.STPhone.Apps.Settings.getSettings) {
+        if (window.STPhone.Apps.Settings && window.STPhone.Apps.Settings.getSettings) {
             const s = window.STPhone.Apps.Settings.getSettings();
             // chatToSms 값이 존재하고 false라면(꺼져있다면) 중단
             if (s.chatToSms === false) {
                 return;
             }
         }
-        // 방금 우리가 숨긴 로그라면? --> 동기화 로직은 실행하되, 화면엔 안 보이게 둠.
-        // 하지만 'syncExternalMessage'는 외부(유저 직접 입력) 메시지를 폰으로 가져오는 것이므로,
-        // (SMS) 태그가 달린 '히든 로그' 자체를 폰으로 또 보내면 안됨 (무한 복제 방지).
-        // 따라서 히든 로그는 여기서 무시합니다.
-        if (node.classList.contains('st-phone-hidden-log') || node.style.display === 'none') {
-            return;
+        
+        // 히든로그인지 확인
+        const isHiddenLog = node.classList.contains('st-phone-hidden-log') || node.style.display === 'none';
+        
+        // 타임스탬프 로직: 히든로그 -> 일반채팅 -> 히든로그 전환 감지
+        if (isHiddenLog) {
+            // 히든로그가 온 경우
+            if (!lastMessageWasHiddenLog && needsTimestampOnNextPhoneMsg) {
+                // 일반채팅 후 첫 히든로그 = 타임스탬프 필요 플래그 유지
+            }
+            lastMessageWasHiddenLog = true;
+            return;  // 히든로그는 동기화 안 함
+        } else {
+            // 일반 채팅이 온 경우
+            if (lastMessageWasHiddenLog) {
+                // 히든로그에서 일반채팅으로 바뀜 = 다음 히든로그에 타임스탬프 필요
+                needsTimestampOnNextPhoneMsg = true;
+            }
+            lastMessageWasHiddenLog = false;
         }
 
         // --- 여기서부터는 기존 로직과 동일 (외부 문자 인식용) ---
@@ -242,4 +259,12 @@
             }
         }
     }
+// 타임스탬프 플래그를 외부에서 접근 가능하게 노출
+    window.STPhoneTimestamp = {
+        needsTimestamp: function() {
+            const needs = needsTimestampOnNextPhoneMsg;
+            needsTimestampOnNextPhoneMsg = false;  // 사용 후 리셋
+            return needs;
+        }
+    };
 })();
