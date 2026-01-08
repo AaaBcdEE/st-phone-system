@@ -1770,7 +1770,36 @@ ${modeHint}
             }
         });
     }
+    // [추가] 실리태번 실제 채팅 로그(히든로그)에서 해당 텍스트를 찾아 지우는 함수
+    function removeHiddenLogByText(textToRemove) {
+        if (!window.SillyTavern) return;
+        const context = window.SillyTavern.getContext();
+        if (!context || !context.chat) return;
 
+        // 채팅의 맨 뒤(최신)부터 거꾸로 탐색 (가장 최근 로그를 지우기 위함)
+        for (let i = context.chat.length - 1; i >= 0; i--) {
+            const msg = context.chat[i];
+
+            // 1. 이것이 우리가 만든 폰 로그인지 확인 (extra.is_phone_log 체크)
+            // 2. 그리고 우리가 지우려는 내용이 포함되어 있는지 확인
+            if (msg.extra && msg.extra.is_phone_log && msg.mes.includes(textToRemove)) {
+
+                // 찾았으면 배열에서 삭제
+                context.chat.splice(i, 1);
+                console.log(`📱 [Messages] 히든 로그 삭제됨: ${textToRemove}`);
+
+                // 변경된 채팅 내역 저장 (가장 중요!!)
+                if (window.SlashCommandParser && window.SlashCommandParser.commands['savechat']) {
+                    window.SlashCommandParser.commands['savechat'].callback({});
+                } else if (typeof saveChatConditional === 'function') {
+                    saveChatConditional();
+                }
+                return; // 하나 지웠으면 종료
+            }
+        }
+    }
+
+/* 수정후 deleteMessage */
     function deleteMessage(contactId, index) {
         const allData = loadAllMessages();
         const msgs = allData[contactId];
@@ -1780,27 +1809,46 @@ ${modeHint}
             return;
         }
 
+        // 1. 지울 메시지의 내용을 미리 백업 (히든로그 찾기용)
+        const targetText = msgs[index].text || '(사진)';
+
+        // 2. UI 데이터(로컬스토리지)에서 삭제
         msgs.splice(index, 1);
         saveAllMessages(allData);
+
+        // 3. [핵심] 실제 실리태번 채팅로그(히든로그)에서도 삭제
+        removeHiddenLogByText(targetText);
+
+        // 4. 화면 갱신
         openChat(contactId);
         toastr.info("메시지가 삭제되었습니다.");
     }
 
-    async function regenerateMessage(contactId, index) {
-        deleteMessage(contactId, index);
-        toastr.info("🔄 답장을 다시 생성합니다...");
 
-        let lastUserText = "(메시지)";
+/* 수정후 regenerateMessage */
+    async function regenerateMessage(contactId, index) {
+        // 1. 일단 현재의 잘못된 답장을 삭제합니다 (위에서 만든 deleteMessage가 히든로그까지 지워줍니다)
+        deleteMessage(contactId, index);
+
+        toastr.info("🔄 기억을 지우고 답장을 다시 생성합니다...");
+
+        // 2. 문맥 파악 (유저가 마지막에 무슨 말을 했는지 찾아서 그걸 트리거로 씁니다)
+        let lastUserText = "(메시지 없음)";
         const msgs = getMessages(contactId);
-        if(msgs.length > 0) {
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg.sender === 'me') {
-                lastUserText = lastMsg.text || '(사진)';
+
+        // 뒤에서부터 찾아서 '내(me)'가 보낸 가장 최신 메시지를 찾음
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].sender === 'me') {
+                lastUserText = msgs[i].text || '(사진)';
+                break;
             }
         }
 
+        // 3. AI에게 다시 답장 요청
+        // 히든 로그가 지워졌으므로, AI는 방금 자기가 헛소리한 것을 잊어버린 상태입니다.
         await generateReply(contactId, lastUserText);
     }
+
 
     // ========== 외부 동기화 ==========
     function syncExternalMessage(sender, text) {
