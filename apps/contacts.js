@@ -365,11 +365,52 @@ window.STPhone.Apps.Contacts = (function() {
                 open();
             }
         });
-        $('#st-edit-avatar-file').on('change', function(e) {
+$('#st-edit-avatar-file').on('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
+            
+            // 이미지 리사이징 (최대 200x200, 용량 줄이기)
             const reader = new FileReader();
-            reader.onload = ev => $('#st-edit-avatar').attr('src', ev.target.result);
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onload = function() {
+                    // 캔버스로 리사이징
+                    const canvas = document.createElement('canvas');
+                    const MAX_SIZE = 200;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // 비율 유지하며 축소
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height = Math.round(height * MAX_SIZE / width);
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width = Math.round(width * MAX_SIZE / height);
+                            height = MAX_SIZE;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 압축된 이미지로 변환 (JPEG, 품질 80%)
+                    const compressedUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    $('#st-edit-avatar').attr('src', compressedUrl);
+                    toastr.success('사진이 변경되었습니다');
+                };
+                img.onerror = function() {
+                    toastr.error('이미지를 불러올 수 없습니다');
+                };
+                img.src = ev.target.result;
+            };
+            reader.onerror = function() {
+                toastr.error('파일을 읽을 수 없습니다');
+            };
             reader.readAsDataURL(file);
         });
         $('#st-edit-save').on('click', () => {

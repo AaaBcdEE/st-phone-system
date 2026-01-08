@@ -104,7 +104,7 @@ window.STPhone.Apps.Messages = (function() {
                 display: flex; flex-direction: column;
                 z-index: 1001;
             }
-            .st-chat-header {
+.st-chat-header {
                 display: flex; align-items: center; padding: 12px 15px;
                 border-bottom: 1px solid var(--pt-border, #e5e5e5);
                 background: var(--pt-bg-color, #f5f5f7); flex-shrink: 0;
@@ -113,20 +113,22 @@ window.STPhone.Apps.Messages = (function() {
                 background: none; border: none; color: var(--pt-accent, #007aff);
                 font-size: 24px; cursor: pointer; padding: 8px;
                 display: flex; align-items: center; justify-content: center;
+                position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
             }
-            .st-chat-contact { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; }
-            .st-chat-avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-            .st-chat-name { font-weight: 600; font-size: 16px; }
+            .st-chat-contact { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+            .st-chat-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+            .st-chat-name { font-weight: 600; font-size: 14px; color: var(--pt-text-color, #000); }
             .st-chat-messages {
                 flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 10px;
                 display: flex; flex-direction: column; gap: 8px;
             }
             
-            /* 그룹챗 메시지 스타일 */
-            .st-msg-wrapper {
+/* 그룹챗 메시지 스타일 */
+.st-msg-wrapper {
                 display: flex;
                 flex-direction: column;
-                max-width: 80%;
+                max-width: 100%;
+                width: fit-content;
             }
             .st-msg-wrapper.me {
                 align-self: flex-end;
@@ -153,11 +155,12 @@ window.STPhone.Apps.Messages = (function() {
                 color: var(--pt-sub-text, #86868b);
             }
             
-            .st-msg-bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
+.st-msg-bubble { max-width: 75%; min-width: 40px; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-wrap: break-word; word-break: keep-all; }
             .st-msg-bubble.me { align-self: flex-end; background: var(--pt-accent, #007aff); color: white; border-bottom-right-radius: 4px; }
             .st-msg-bubble.them { align-self: flex-start; background: var(--pt-card-bg, #e5e5ea); color: var(--pt-text-color, #000); border-bottom-left-radius: 4px; }
             .st-msg-image { max-width: 200px; border-radius: 12px; cursor: pointer; }
-
+/* 그룹챗 전용 말풍선 - 더 넓게 */
+            .st-msg-wrapper .st-msg-bubble { max-width: 100%; }
             /* 입력창 영역 */
             .st-chat-input-area {
                 display: flex; align-items: flex-end; padding: 12px 15px; padding-bottom: 45px; gap: 10px;
@@ -913,13 +916,12 @@ window.STPhone.Apps.Messages = (function() {
         $screen.append(`
             ${css}
             <div class="st-chat-screen">
-                <div class="st-chat-header">
+<div class="st-chat-header" style="position: relative;">
                     <button class="st-chat-back" id="st-chat-back">‹</button>
                     <div class="st-chat-contact">
                         <img class="st-chat-avatar" src="${contact.avatar || DEFAULT_AVATAR}" onerror="this.src='${DEFAULT_AVATAR}'">
                         <span class="st-chat-name">${contact.name}</span>
                     </div>
-                    <div style="width:40px;"></div>
                 </div>
 
                 <div class="st-chat-messages" id="st-chat-messages">
@@ -1430,14 +1432,32 @@ ${prefill ? prefill : ''}${contact.name}:`;
                 }
             }
 
-            // [수정됨] 일반 텍스트 응답 (엔터 기준으로 말풍선 나누기 + 순차 전송)
+// [수정됨] 일반 텍스트 응답 (엔터 기준으로 말풍선 나누기 + 순차 전송)
             // [수정됨] 텍스트를 쪼개서 저장하지 않고, 한 번에 저장합니다. (삭제/재생성 시 그룹 처리를 위해)
             if (replyText) {
+                 // [NEW] 📞 전화 태그 감지 - [call to user]가 있으면 전화 걸기
+                 let shouldCall = false;
+                 if (replyText.toLowerCase().includes('[call to user]')) {
+                     shouldCall = true;
+                     // 태그만 제거 (앞뒤 텍스트는 유지)
+                     replyText = replyText.replace(/\[call to user\]/gi, '').trim();
+                 }
+
                  // 1초 정도 뜸만 들이고 한 번에 전송 (화면에 보여질 때는 수정1에 의해 말풍선이 나뉘어 보임)
                  await new Promise(resolve => setTimeout(resolve, 1000));
 
-                 receiveMessage(contactId, replyText);
-                 addHiddenLog(contact.name, `[📩 ${contact.name} -> ${myName}]: ${replyText}`);
+                 // 태그 제거 후 남은 텍스트가 있으면 문자로 전송
+                 if (replyText) {
+                     receiveMessage(contactId, replyText);
+                     addHiddenLog(contact.name, `[📩 ${contact.name} -> ${myName}]: ${replyText}`);
+                 }
+
+                 // 전화 태그가 있었으면 문자 보낸 후 2초 뒤에 전화 걸기
+                 if (shouldCall && window.STPhone.Apps?.Phone?.receiveCall) {
+                     setTimeout(() => {
+                         window.STPhone.Apps.Phone.receiveCall(contact);
+                     }, 2000);
+                 }
             }
 
 
