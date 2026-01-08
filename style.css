@@ -618,11 +618,28 @@
         max-width: none !important;
     }
 
-    /* 7. 홈 바 위치 조정 (하단 터치 영역 확보) */
+    /* 7. 홈 바 위치 조정 (스마트 위치: 폰 기종 안전영역 자동 감지) */
     .st-phone-home-area {
-        bottom: 5px !important;
-        padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+        /* [핵심] 폰 기종별 하단 베젤(Safe Area)을 자동으로 계산해서 그 바로 위에 위치시킴 */
+        bottom: calc(15px + env(safe-area-inset-bottom)) !important;
+
+        /* 터치하기 편하도록 높이 확보 */
+        height: 40px !important;
+
+        padding-bottom: 0 !important;
+
+        /* 배경 투명 */
+        background: none !important;
+
+        /* 흰색 막대가 배경색과 섞이지 않게 그림자 효과만 유지 */
+        filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)) !important;
+
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        z-index: 2147483647 !important; /* 무조건 맨 위에 표시 */
     }
+
 }
 /* [수정됨] SVG 아이콘 스타일 (크기 확대 & 강제 중앙 정렬) */
 
