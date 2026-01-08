@@ -778,11 +778,10 @@ Response should be 1-2 sentences max.
                         }
                     }
 
-                    const oneShotPrompt = `[System Instruction: Incoming Voice Call Simulation]
-You are "${contact.name}". User "${userName}" is calling you on the phone.
-
-### Context (Recent Chat)
-${mainChatHistory}
+                    // 설정에서 전화 수신 프롬프트 가져오기
+                    const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+                    let pickupPromptTemplate = settings.phonePickupPrompt || `[System Instruction: Incoming Voice Call Simulation]
+You are "{{char}}". User "{{user}}" is calling you on the phone.
 
 ### Task
 Analyze the relationship and current situation, then output a JSON object defined below.
@@ -793,7 +792,13 @@ Analyze the relationship and current situation, then output a JSON object define
    - If pickup=false: The **Internal Reason** for rejection.
 
 ### Format (Strict JSON)
-{"pickup": true, "content": "Hello user, what do you need?"}`;
+{"pickup": true, "content": "Hello, what's up?"}`;
+
+                    // 변수 치환
+                    const oneShotPrompt = pickupPromptTemplate
+                        .replace(/\{\{char\}\}/g, contact.name)
+                        .replace(/\{\{user\}\}/g, userName)
+                    + `\n\n### Context (Recent Chat)\n${mainChatHistory}`;
 
                     const result = await genCmd.callback({ quiet: 'true' }, oneShotPrompt);
                     let decision = { pickup: true, content: "Hello?" };
@@ -975,6 +980,19 @@ Scenario: ${liveChar.scenario || ''}
                 currentTurnLine = `${userSettings.name}: "${userText}"`;
             }
 
+            // 설정에서 전화 대화 프롬프트 가져오기
+            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+            const phoneCallRules = settings.phoneCallPrompt || `### 📞 Strict Phone Call Rules (MUST FOLLOW)
+1. **Language:** Respond ONLY in **Korean**.
+2. **Format:** DO NOT use quotation marks ("") around speech. Just write the raw text.
+3. **No Prose:** DO NOT write novel-style descriptions, actions, or inner thoughts.
+4. **Audio Only:** Output ONLY what can be heard through the phone (Speech) and audible sounds.
+5. **Sound Effects:** Put distinct sounds in parentheses like (한숨), (웃음).
+6. **Termination:** To hang up the phone, append [HANGUP] at the very end of your response.
+
+### Response Format (JSON Only)
+{"text": "대사_입력"}`;
+
             const prompt = `
 [System Note: ${situationInstruction}]
 Roleplay as "${contact.name}".
@@ -985,22 +1003,13 @@ ${charRealData}
 Name: ${userSettings.name}
 Details: ${userSettings.persona}
 
-### 📞 Strict Phone Call Rules (MUST FOLLOW)
-1. **Language:** Respond ONLY in **Korean**.
-2. **Format:** DO NOT use quotation marks ("") around speech. Just write the raw text.
-3. **No Prose:** DO NOT write novel-style descriptions, actions, or inner thoughts. Visual descriptions are impossible in a phone call.
-4. **Audio Only:** Output ONLY what can be heard through the phone (Speech) and audible sounds (Breathing, Laughing, etc).
-5. **Sound Effects:** Put distinct sounds in parentheses like (한숨), (사람들이 떠드는 소리).
-6. **Termination:** To hang up the phone, append [HANGUP] at the very end of your response.
+${phoneCallRules}
 
 ### Context (Chat History)
 ${mainChatHistory}
 
 ### Current Turn
 ${currentTurnLine}
-
-### Response Format (JSON Only)
-{"text": "한국어_대사_입력"}
 `;
 
 

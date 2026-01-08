@@ -398,6 +398,37 @@ window.STPhone.Apps.Messages = (function() {
                 white-space: nowrap;
                 max-width: 100%;
             }
+            
+            /* 타임스탬프/구분선 스타일 */
+            .st-msg-timestamp {
+                text-align: center;
+                padding: 15px 0;
+                color: var(--pt-sub-text, #86868b);
+                font-size: 12px;
+            }
+            .st-msg-timestamp-text {
+                background: var(--pt-card-bg, rgba(0,0,0,0.05));
+                padding: 5px 15px;
+                border-radius: 15px;
+                display: inline-block;
+            }
+            .st-msg-divider {
+                display: flex;
+                align-items: center;
+                padding: 15px 0;
+                color: var(--pt-sub-text, #86868b);
+                font-size: 12px;
+            }
+            .st-msg-divider::before,
+            .st-msg-divider::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: var(--pt-border, #e5e5e5);
+            }
+            .st-msg-divider-text {
+                padding: 0 10px;
+            }
         </style>
     `;
 
@@ -421,10 +452,41 @@ function getGroupStorageKey() {
     }
 
     // ========== 번역 캐시 저장소 ==========
-    function getTranslationStorageKey() {
+function getTranslationStorageKey() {
         const context = window.SillyTavern?.getContext?.();
         if (!context?.chatId) return null;
         return 'st_phone_translations_' + context.chatId;
+    }
+
+    // ========== 타임스탬프 저장소 ==========
+    function getTimestampStorageKey() {
+        const context = window.SillyTavern?.getContext?.();
+        if (!context?.chatId) return null;
+        return 'st_phone_timestamps_' + context.chatId;
+    }
+
+    function loadTimestamps(contactId) {
+        const key = getTimestampStorageKey();
+        if (!key) return [];
+        try {
+            const all = JSON.parse(localStorage.getItem(key) || '{}');
+            return all[contactId] || [];
+        } catch (e) { return []; }
+    }
+
+    function saveTimestamp(contactId, beforeMsgIndex, timestamp) {
+        const key = getTimestampStorageKey();
+        if (!key) return;
+        try {
+            const all = JSON.parse(localStorage.getItem(key) || '{}');
+            if (!all[contactId]) all[contactId] = [];
+            // 중복 방지: 같은 인덱스에 이미 있으면 추가 안 함
+            const exists = all[contactId].some(t => t.beforeMsgIndex === beforeMsgIndex);
+            if (!exists) {
+                all[contactId].push({ beforeMsgIndex, timestamp });
+                localStorage.setItem(key, JSON.stringify(all));
+            }
+        } catch (e) { console.error('[Messages] 타임스탬프 저장 실패:', e); }
     }
 
     function loadTranslations() {
@@ -469,9 +531,16 @@ function getGroupStorageKey() {
         return all[contactId] || [];
     }
 
-    function addMessage(contactId, sender, text, imageUrl = null) {
+function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = false) {
         const all = loadAllMessages();
         if (!all[contactId]) all[contactId] = [];
+
+        const newMsgIndex = all[contactId].length;
+
+        // 타임스탬프 추가가 필요하면 저장
+        if (addTimestamp) {
+            saveTimestamp(contactId, newMsgIndex, Date.now());
+        }
 
         // 메시지 추가
         all[contactId].push({
@@ -992,9 +1061,25 @@ function getGroupStorageKey() {
 
 const msgs = getMessages(contactId);
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+        const timestamps = loadTimestamps(contactId);
+        const timestampMode = settings.timestampMode || 'none';
         let msgsHtml = '';
 
         msgs.forEach((m, index) => {
+            // 타임스탬프/구분선 표시 체크
+            if (timestampMode !== 'none') {
+                const tsData = timestamps.find(t => t.beforeMsgIndex === index);
+                if (tsData) {
+                    const date = new Date(tsData.timestamp);
+                    const timeStr = `${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+                    
+                    if (timestampMode === 'timestamp') {
+                        msgsHtml += `<div class="st-msg-timestamp"><span class="st-msg-timestamp-text">📱 ${timeStr}</span></div>`;
+                    } else if (timestampMode === 'divider') {
+                        msgsHtml += `<div class="st-msg-divider"><span class="st-msg-divider-text">대화 복귀</span></div>`;
+                    }
+                }
+            }
             const side = m.sender === 'me' ? 'me' : 'them';
             // 상대방 메시지에만 클릭 이벤트를 위한 속성을 부여 (번호표인 data-idx는 하나지만, 말풍선은 여러개일 수 있음)
             const clickAttr = (side === 'them') ? `data-action="msg-option" data-idx="${index}" class="st-msg-bubble ${side} clickable" style="cursor:pointer;" title="옵션 보기"` : `class="st-msg-bubble ${side}"`;
@@ -1465,10 +1550,16 @@ if (translateEnabled) {
             return;
         }
 
-        $('#st-chat-input').val('').css('height', 'auto');
+$('#st-chat-input').val('').css('height', 'auto');
 
-        // 1. 메시지를 저장하고 번호표(newIdx)를 받음
-        const newIdx = addMessage(currentContactId, 'me', text);
+        // 타임스탬프 필요 여부 체크
+        let needsTimestamp = false;
+        if (window.STPhoneTimestamp && window.STPhoneTimestamp.needsTimestamp) {
+            needsTimestamp = window.STPhoneTimestamp.needsTimestamp();
+        }
+
+        // 1. 메시지를 저장하고 번호표(newIdx)를 받음 (타임스탬프 플래그 전달)
+        const newIdx = addMessage(currentContactId, 'me', text, null, needsTimestamp);
 
         // 2. 말풍선을 그릴 때 번호표도 같이 넘겨줌
         appendBubble('me', text, null, newIdx);

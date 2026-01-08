@@ -187,10 +187,10 @@ window.STPhone.Apps.Camera = (function() {
         }
 
         try {
-            const aiInstruction = `[System] You are an expert image prompt generator for Stable Diffusion.
+            // 설정에서 카메라 프롬프트 가져오기
+            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+            const cameraPromptTemplate = settings.cameraPrompt || `[System] You are an expert image prompt generator for Stable Diffusion.
 Convert the user's simple description into a detailed, high-quality image generation prompt.
-
-User's request: "${userInput}"
 
 Rules:
 1. Output ONLY a single <pic prompt="..."> tag, nothing else
@@ -198,6 +198,13 @@ Rules:
 3. Include artistic style, lighting, composition details
 4. Keep it under 200 characters
 5. Make it vivid and specific
+
+Example output format:
+<pic prompt="a fluffy orange cat sleeping on a velvet couch, warm afternoon sunlight, cozy living room, soft focus, photorealistic">`;
+
+            const aiInstruction = cameraPromptTemplate + `
+
+User's request: "${userInput}"
 
 Example output format:
 <pic prompt="a fluffy orange cat sleeping on a velvet couch, warm afternoon sunlight, cozy living room, soft focus, photorealistic">`;

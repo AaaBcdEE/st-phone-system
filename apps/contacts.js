@@ -197,11 +197,66 @@ window.STPhone.Apps.Contacts = (function() {
         return 'st_phone_contacts_' + context.chatId;
     }
 
+    // [NEW] 캐릭터 ID 기반 키 (다른 채팅방에서도 같은 캐릭터면 공유)
+    function getCharacterStorageKey() {
+        const context = window.SillyTavern?.getContext?.();
+        if (!context?.characterId && !context?.characters) return null;
+        // 캐릭터 ID 또는 이름을 기반으로 키 생성
+        const charId = context.characterId !== undefined ? context.characterId : 'unknown';
+        return 'st_phone_contacts_char_' + charId;
+    }
+
+    // [NEW] 캐릭터별로 연락처 저장
+    function saveContactForCharacter(contactData) {
+        const key = getCharacterStorageKey();
+        if (!key) return;
+        
+        try {
+            let charContacts = JSON.parse(localStorage.getItem(key) || '[]');
+            // 같은 이름 있으면 업데이트, 없으면 추가
+            const existingIndex = charContacts.findIndex(c => c.name === contactData.name);
+            if (existingIndex >= 0) {
+                charContacts[existingIndex] = { ...charContacts[existingIndex], ...contactData };
+            } else {
+                charContacts.push({ ...contactData, id: 'char_' + Date.now() });
+            }
+            localStorage.setItem(key, JSON.stringify(charContacts));
+        } catch (e) { console.error('[Contacts] 캐릭터별 저장 실패:', e); }
+    }
+
+    // [NEW] 캐릭터별 저장된 연락처 로드
+    function loadContactsForCharacter() {
+        const key = getCharacterStorageKey();
+        if (!key) return [];
+        
+        try {
+            return JSON.parse(localStorage.getItem(key) || '[]');
+        } catch (e) { return []; }
+    }
+
     function loadContacts() {
         const key = getStorageKey();
         if (!key) { contacts = []; return; }
         try {
             contacts = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            // [NEW] 캐릭터별로 저장된 연락처가 있으면 병합
+            const charContacts = loadContactsForCharacter();
+            charContacts.forEach(charContact => {
+                // 같은 이름의 연락처가 현재 채팅에 없으면 추가
+                const exists = contacts.some(c => c.name === charContact.name);
+                if (!exists && charContact.persistForChar) {
+                    contacts.push({
+                        ...charContact,
+                        id: generateId() // 새 ID 부여
+                    });
+                }
+            });
+            
+            // 병합 후 저장
+            if (charContacts.length > 0) {
+                saveContacts();
+            }
         } catch (e) { contacts = []; }
     }
 
@@ -233,6 +288,7 @@ window.STPhone.Apps.Contacts = (function() {
             avatar: data.avatar || '',
             persona: data.persona || '',
             tags: data.tags || '',
+            persistForChar: data.persistForChar || false,  // [NEW]
             createdAt: Date.now()
         };
         contacts.push(c);
@@ -352,8 +408,17 @@ window.STPhone.Apps.Contacts = (function() {
                             <textarea class="st-contact-edit-textarea" id="st-edit-tags" placeholder="예: 1girl, long hair...">${c?.tags || ''}</textarea>
                         </div>
                     </div>
-                    <button id="st-edit-save" style="width:100%;padding:15px;border:none;border-radius:12px;background:var(--pt-accent,#007aff);color:white;font-size:16px;cursor:pointer;">저장</button>
-                </div>
+                    <!-- [NEW] 캐릭터별 연락처 저장 체크박스 -->
+                    <div class="st-contact-edit-group" style="background:rgba(0,122,255,0.1);">
+                        <div class="st-contact-edit-row" style="display:flex; align-items:center; justify-content:space-between;">
+                            <div>
+                                <div class="st-contact-edit-label" style="color:var(--pt-text-color); font-weight:600;">🔒 새 채팅에도 유지</div>
+                                <div style="font-size:11px; color:var(--pt-sub-text);">같은 캐릭터의 새 채팅방에서도 이 연락처 유지</div>
+                            </div>
+                            <input type="checkbox" class="st-switch" id="st-edit-persist" ${c?.persistForChar ? 'checked' : ''}>
+                        </div>
+                    </div>
+                    <button id="st-edit-save" style="width:100%;padding:15px;border:none;border-radius:12px;background:var(--pt-accent,#007aff);color:white;font-size:16px;cursor:pointer;">저장</button>                </div>
             </div>`;
         $('.st-contacts-app').append(html);
 
@@ -416,14 +481,21 @@ $('#st-edit-avatar-file').on('change', function(e) {
         $('#st-edit-save').on('click', () => {
             const name = $('#st-edit-name').val().trim();
             if (!name) { toastr.warning('이름을 입력하세요'); return; }
+            const persistForChar = $('#st-edit-persist').is(':checked');
             const data = {
                 name,
                 avatar: $('#st-edit-avatar').attr('src'),
                 persona: $('#st-edit-persona').val().trim(),
-                tags: $('#st-edit-tags').val().trim()
+                tags: $('#st-edit-tags').val().trim(),
+                persistForChar: persistForChar  // [NEW] 캐릭터별 유지 여부
             };
             if (c) updateContact(c.id, data);
             else addContact(data);
+            
+            // [NEW] 캐릭터별 유지 체크되어 있으면 캐릭터 전용 저장소에도 저장
+            if (persistForChar) {
+                saveContactForCharacter(data);
+            }
             $('#st-contact-edit').remove();
             open();
             toastr.success('저장되었습니다');
