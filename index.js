@@ -47,8 +47,9 @@ const EXTENSION_NAME = 'ST Phone System';
             // 5. 스토어에서 설치 가능한 앱들 로드
             await loadModule('apps/store-apps/notes.js');
             await loadModule('apps/store-apps/weather.js');
-            await loadModule('apps/store-apps/music.js');
             await loadModule('apps/store-apps/games.js');
+            await loadModule('apps/store-apps/calendar.js');
+
 
 
             // 6. 모듈별 Init 실행
@@ -119,7 +120,12 @@ const EXTENSION_NAME = 'ST Phone System';
         setTimeout(initialize, 500);
 
         // 메인 채팅 감시자 실행
+       // 수정후 코드
+        // 메인 채팅 감시자 실행
         setupChatObserver();
+
+        // 캘린더 프롬프트 주입 이벤트 리스너
+        setupCalendarPromptInjector();
     });
 
     // 감시자 함수 정의
@@ -259,6 +265,7 @@ const EXTENSION_NAME = 'ST Phone System';
             }
         }
     }
+// 수정후 코드
 // 타임스탬프 플래그를 외부에서 접근 가능하게 노출
     window.STPhoneTimestamp = {
         needsTimestamp: function() {
@@ -267,4 +274,156 @@ const EXTENSION_NAME = 'ST Phone System';
             return needs;
         }
     };
+
+    // ========== 캘린더 프롬프트 주입 시스템 ==========
+    function setupCalendarPromptInjector() {
+        const checkInterval = setInterval(() => {
+            const ctx = window.SillyTavern?.getContext?.();
+            if (!ctx) return;
+            
+            clearInterval(checkInterval);
+            
+            const eventSource = ctx.eventSource;
+            const eventTypes = ctx.eventTypes;
+            
+            if (eventSource && eventTypes) {
+                // 프롬프트 생성 전 이벤트에 캘린더 프롬프트 주입
+                eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, (data) => {
+                    injectCalendarPrompt(data);
+                });
+                
+                // AI 응답 받은 후 날짜 추출
+                eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageId) => {
+                    setTimeout(() => processCalendarResponse(), 300);
+                });
+                
+                console.log(`📅 [${EXTENSION_NAME}] Calendar prompt injector initialized`);
+            } else {
+                console.warn(`📅 [${EXTENSION_NAME}] Event system not available, using fallback`);
+                // 폴백: MutationObserver로 응답 감시
+                setupCalendarResponseObserver();
+            }
+        }, 1000);
+    }
+
+    function injectCalendarPrompt(data) {
+        // [NEW] 폰 앱(문자/전화)에서 AI 생성 중이면 주입 안 함
+        // 폰 앱은 자체적으로 getEventsOnlyPrompt()를 사용함
+        if (window.STPhone?.isPhoneGenerating) {
+            console.log(`📅 [${EXTENSION_NAME}] Calendar prompt skipped (phone app is generating)`);
+            return;
+        }
+
+        // 캘린더 앱이 설치되어 있는지 확인
+        const Store = window.STPhone?.Apps?.Store;
+        if (!Store || !Store.isInstalled('calendar')) {
+            return;
+        }
+
+        const Calendar = window.STPhone?.Apps?.Calendar;
+        if (!Calendar || !Calendar.isCalendarEnabled()) {
+            return;
+        }
+
+        const calendarPrompt = Calendar.getPrompt();
+        if (!calendarPrompt) return;
+
+        // data.chat 또는 data.messages에 프롬프트 주입
+        if (data && data.chat && Array.isArray(data.chat)) {
+            // 시스템 메시지로 주입
+            data.chat.push({
+                role: 'system',
+                content: calendarPrompt
+            });
+            console.log(`📅 [${EXTENSION_NAME}] Calendar prompt injected`);
+        }
+    }
+
+
+    // 수정후 코드
+    function processCalendarResponse() {
+        try {
+            const Store = window.STPhone?.Apps?.Store;
+            if (!Store || !Store.isInstalled('calendar')) {
+                return;
+            }
+            
+            const Calendar = window.STPhone?.Apps?.Calendar;
+            if (!Calendar) return;
+            
+            const ctx = window.SillyTavern?.getContext?.();
+            if (!ctx || !ctx.chat || ctx.chat.length === 0) return;
+            
+            const lastMsg = ctx.chat[ctx.chat.length - 1];
+            if (!lastMsg || lastMsg.is_user) return;
+            
+            const msgText = lastMsg.mes || '';
+            if (!msgText) return;
+            
+            // 날짜 추출 및 처리
+            const processed = Calendar.processAiResponse(msgText);
+            
+            // 날짜가 추출되었으면 메시지에서 날짜 부분 숨기기
+            if (processed !== msgText) {
+                // DOM에서 해당 메시지 찾아서 날짜 부분 숨기기
+                setTimeout(() => hideCalendarDateInChat(), 100);
+            }
+        } catch (e) {
+            console.error(`[${EXTENSION_NAME}] processCalendarResponse 에러:`, e);
+        }
+    }
+
+// 수정후 코드
+    function hideCalendarDateInChat() {
+        try {
+            // 마지막 AI 메시지에서 날짜 형식 숨기기
+            const messages = document.querySelectorAll('.mes:not([is_user="true"]) .mes_text');
+            if (!messages || messages.length === 0) return;
+            
+            const lastMsgEl = messages[messages.length - 1];
+            if (!lastMsgEl) return;
+            
+            const html = lastMsgEl.innerHTML;
+            if (!html) return;
+            
+            // [2024년 3월 15일 금요일] 형식을 숨김 처리
+            const dateRegex = /\[(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\]/g;
+            
+            // 이미 숨김 처리된 경우 스킵
+            if (lastMsgEl.querySelector('.st-calendar-date-hidden')) return;
+            
+            if (dateRegex.test(html)) {
+                // 정규식 재설정 (test 후 lastIndex가 변경되므로)
+                const replaceRegex = /\[(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\]/g;
+                lastMsgEl.innerHTML = html.replace(replaceRegex, '<span class="st-calendar-date-hidden" style="display:none;">$&</span>');
+            }
+        } catch (e) {
+            console.error(`[${EXTENSION_NAME}] hideCalendarDateInChat 에러:`, e);
+        }
+    }
+
+    function setupCalendarResponseObserver() {
+        // 폴백용: MutationObserver로 새 메시지 감시
+        const checkChat = setInterval(() => {
+            const chatEl = document.querySelector('#chat');
+            if (!chatEl) return;
+            
+            clearInterval(checkChat);
+            
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1 && node.classList.contains('mes')) {
+                            // AI 메시지인 경우에만 처리
+                            if (node.getAttribute('is_user') !== 'true') {
+                                setTimeout(() => processCalendarResponse(), 300);
+                            }
+                        }
+                    });
+                });
+            });
+            
+            observer.observe(chatEl, { childList: true, subtree: true });
+        }, 1000);
+    }
 })();

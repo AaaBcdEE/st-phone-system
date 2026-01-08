@@ -131,7 +131,7 @@
 
 /* 📱 테마 변수 (기본: 라이트 모드) */
 #st-phone-container {
-    --pt-bg-color: rgba(245, 245, 247, 0.95); /* 앱 배경 */
+    --pt-bg-color: #f5f5f7; /* 앱 배경 */
     --pt-text-color: #000000;                /* 글자 색 */
     --pt-sub-text: #86868b;                  /* 보조 글자 */
     --pt-card-bg: #ffffff;                   /* 입력창/카드 배경 */
@@ -142,7 +142,7 @@
 
 /* 🌙 다크 모드 (클래스 추가시 자동 변경) */
 #st-phone-container.dark-mode {
-    --pt-bg-color: rgba(0, 0, 0, 0.8);
+    --pt-bg-color: #000000;
     --pt-text-color: #ffffff;
     --pt-sub-text: #98989e;
     --pt-card-bg: #1c1c1e;

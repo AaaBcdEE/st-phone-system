@@ -6,7 +6,7 @@ window.STPhone.UI = (function() {
     let utils;
     let $phoneContainer;
 
-    function init(dependencies) {
+    async function init(dependencies) {
         utils = dependencies.utils;
         if (!utils) return;
 
@@ -15,6 +15,11 @@ window.STPhone.UI = (function() {
 
         if (window.STPhone.Apps && window.STPhone.Apps.Settings) {
             window.STPhone.Apps.Settings.init();
+        }
+
+        // 봇/유저 연락처 자동 동기화
+        if (window.STPhone.Apps && window.STPhone.Apps.Contacts) {
+            await window.STPhone.Apps.Contacts.syncAutoContacts();
         }
 
         utils.log('UI Module Initialized.');
@@ -207,6 +212,7 @@ window.STPhone.UI = (function() {
         }
     }
 
+    // 수정후 코드
     function openStoreApp(appId) {
         const Apps = window.STPhone.Apps;
         if (!Apps) return;
@@ -224,6 +230,9 @@ window.STPhone.UI = (function() {
                 break;
             case 'games':
                 Apps.Games?.open();
+                break;
+            case 'calendar':
+                Apps.Calendar?.open();
                 break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
