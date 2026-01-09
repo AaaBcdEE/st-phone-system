@@ -3,3 +3,4 @@
 
 v1.2.0 (260109)
 도움준 깡: https://kkangtong.xyz/posts/31293#comment-0df5f5ca-4bb0-438e-bf51-dc06cd36fa02
+v1.2.5
