@@ -132,6 +132,15 @@ window.STPhone.UI = (function() {
             unreadCount = window.STPhone.Apps.Messages.getTotalUnread();
         }
 
+        // 테마 앱에서 커스텀 아이콘 가져오기
+        let customIcons = {};
+        if (window.STPhone.Apps && window.STPhone.Apps.Theme && window.STPhone.Apps.Theme.getCurrentTheme) {
+            const theme = window.STPhone.Apps.Theme.getCurrentTheme();
+            if (theme && theme.icons) {
+                customIcons = theme.icons;
+            }
+        }
+
         let iconsHtml = '';
         allApps.forEach(app => {
             // 문자 앱에 배지 표시
@@ -140,10 +149,20 @@ window.STPhone.UI = (function() {
                 badgeHtml = `<div class="st-app-badge">${unreadCount > 99 ? '99+' : unreadCount}</div>`;
             }
 
+            // 커스텀 아이콘이 있으면 바로 적용
+            const customIcon = customIcons[app.id];
+            let bgStyle = `background: ${app.bg};`;
+            let iconContent = app.icon;
+
+            if (customIcon && customIcon.length > 0) {
+                bgStyle = `background-color: transparent; background-image: url(${customIcon}); background-size: cover; background-position: center;`;
+                iconContent = `<span style="opacity: 0;">${app.icon}</span>`; // SVG 숨기기
+            }
+
             iconsHtml += `
-                <div class="st-app-icon" data-app="${app.id}" ${app.isStoreApp ? 'data-store-app="true"' : ''} 
-                     style="background: ${app.bg}; color: white; padding-bottom: 10px; box-sizing: border-box; position: relative;">
-                    ${app.icon}
+                <div class="st-app-icon" data-app="${app.id}" ${app.isStoreApp ? 'data-store-app="true"' : ''}
+                     style="${bgStyle} color: white; padding-bottom: 10px; box-sizing: border-box; position: relative;">
+                    ${iconContent}
                     ${badgeHtml}
                 </div>
             `;
@@ -156,7 +175,7 @@ window.STPhone.UI = (function() {
         $('.st-app-icon').on('click', function() {
             const appId = $(this).data('app');
             const isStoreApp = $(this).data('store-app');
-            
+
             if (isStoreApp) {
                 openStoreApp(appId);
             } else {
@@ -169,7 +188,7 @@ window.STPhone.UI = (function() {
         $('.st-app-icon[data-store-app="true"]').on('mousedown touchstart', function(e) {
             const $icon = $(this);
             const appId = $icon.data('app');
-            
+
             pressTimer = setTimeout(() => {
                 showDeleteConfirm(appId, $icon);
             }, 800);
@@ -234,6 +253,9 @@ window.STPhone.UI = (function() {
             case 'calendar':
                 Apps.Calendar?.open();
                 break;
+            case 'theme':
+                Apps.Theme?.open();
+                break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
         }
@@ -243,7 +265,7 @@ window.STPhone.UI = (function() {
     function showDeleteConfirm(appId, $icon) {
         const Apps = window.STPhone.Apps;
         const appInfo = Apps.Store?.getStoreAppInfo(appId);
-        
+
         if (!appInfo) return;
 
         // 삭제 확인 모달 표시
@@ -392,7 +414,7 @@ window.STPhone.UI = (function() {
 
         $('#st-airdrop-accept').on('click', () => {
             closeAirdropPopup();
-            
+
             if (window.STPhone.Apps?.Album) {
                 window.STPhone.Apps.Album.addPhoto({
                     url: imageUrl,
