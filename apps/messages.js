@@ -4205,63 +4205,25 @@ ${modeHint}
     async function checkProactiveMessage(charName) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
-        console.debug('📱 [Proactive] check start', { charName, enabled: !!settings.proactiveEnabled, isGenerating });
-
-        if (!settings.proactiveEnabled) {
-            console.debug('📱 [Proactive] disabled');
-            return;
-        }
+        if (!settings.proactiveEnabled) return;
 
         const sinceLast = Date.now() - lastProactiveCheck;
-        if (sinceLast < PROACTIVE_COOLDOWN) {
-            console.debug('📱 [Proactive] cooldown', { sinceLast, cooldown: PROACTIVE_COOLDOWN });
-            return;
-        }
-
-        if (isGenerating) {
-            console.debug('📱 [Proactive] blocked by isGenerating');
-            return;
-        }
+        if (sinceLast < PROACTIVE_COOLDOWN) return;
+        if (isGenerating) return;
 
         const chance = settings.proactiveChance || 30;
         const roll = Math.random() * 100;
-
-        console.debug('📱 [Proactive] roll', { roll: Number(roll.toFixed(2)), chance });
-
-        if (roll > chance) {
-            console.log(`📱 [Proactive] 확률 미달 (${roll.toFixed(0)}% > ${chance}%)`);
-            return;
-        }
+        if (roll > chance) return;
 
         lastProactiveCheck = Date.now();
 
-        // 1. 먼저 캐릭터 이름으로 연락처 찾기
         let contact = getContactByName(charName);
+        if (!contact) contact = await getBotContact();
+        if (!contact) contact = getRandomContact();
+        if (!contact) return;
 
-        // 2. 없으면 자동 생성된 봇 연락처 가져오기
-        if (!contact) {
-            contact = await getBotContact();
-        }
+        if (contact.disableProactiveMessage) return;
 
-        // 3. 그래도 없으면 랜덤 연락처
-        if (!contact) {
-            contact = getRandomContact();
-        }
-
-        if (!contact) {
-            console.log('📱 [Proactive] 연락처 없음');
-            return;
-        }
-
-        console.debug('📱 [Proactive] selected contact', { id: contact.id, name: contact.name, isTemp: !!contact.isTemp });
-
-        // [NEW] 연락처에서 선제 메시지 비활성화되어 있는지 확인
-        if (contact.disableProactiveMessage) {
-            console.log(`📱 [Proactive] ${contact.name}의 선제 메시지가 비활성화됨`);
-            return;
-        }
-
-        console.log(`📱 [Proactive] ${contact.name}에게서 선제 메시지 생성!`);
         await generateProactiveMessage(contact);
     }
 
