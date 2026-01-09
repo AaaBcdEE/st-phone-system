@@ -17,7 +17,7 @@ window.STPhone.Apps.Store = (function() {
             }
             
             .st-store-header {
-                padding: 20px 15px 10px;
+                padding: 20px 20px 10px;
                 flex-shrink: 0;
             }
             .st-store-title {
@@ -32,13 +32,13 @@ window.STPhone.Apps.Store = (function() {
             
             .st-store-tabs {
                 display: flex;
-                padding: 0 15px;
+                padding: 0 20px;
                 gap: 20px;
                 border-bottom: 1px solid var(--pt-border, #e5e5e5);
                 flex-shrink: 0;
             }
             .st-store-tab {
-                padding: 12px 0;
+                padding: 14px 0;
                 font-size: 15px;
                 font-weight: 500;
                 cursor: pointer;
@@ -54,12 +54,12 @@ window.STPhone.Apps.Store = (function() {
             .st-store-content {
                 flex: 1;
                 overflow-y: auto;
-                padding: 15px;
+                padding: 20px;
             }
             
             /* 추천 배너 */
             .st-store-featured {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: var(--pt-accent, #007aff);
                 border-radius: 16px;
                 padding: 20px;
                 margin-bottom: 20px;
@@ -104,7 +104,7 @@ window.STPhone.Apps.Store = (function() {
             .st-app-card {
                 display: flex;
                 align-items: center;
-                padding: 12px;
+                padding: 14px;
                 background: var(--pt-card-bg, #fff);
                 border-radius: 14px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.04);
@@ -220,12 +220,12 @@ window.STPhone.Apps.Store = (function() {
                 margin-bottom: 20px;
             }
             .st-detail-icon {
-                width: 100px; height: 100px;
-                border-radius: 22px;
+                width: 80px; height: 80px;
+                border-radius: 20px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 48px;
+                font-size: 36px;
                 margin-right: 15px;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             }
@@ -334,7 +334,7 @@ window.STPhone.Apps.Store = (function() {
         {
             id: 'notes',
             name: '메모',
-            bg: 'linear-gradient(135deg, #f1c40f, #f39c12)',
+            bg: '#f39c12',
             category: '생산성',
             description: '간단한 메모를 작성하고 저장할 수 있습니다. 아이디어를 빠르게 기록하세요.',
             version: '1.0.0',
@@ -344,7 +344,7 @@ window.STPhone.Apps.Store = (function() {
         {
             id: 'weather',
             name: '날씨',
-            bg: 'linear-gradient(135deg, #2980b9, #6dd5fa)',
+            bg: '#3498db',
             category: '날씨',
             description: '가상의 날씨 정보를 확인합니다. 롤플레이용 날씨 앱입니다.',
             version: '1.0.0',
@@ -354,18 +354,17 @@ window.STPhone.Apps.Store = (function() {
         {
             id: 'music',
             name: '음악',
-            bg: 'linear-gradient(135deg, #ff00cc, #333399)',
+            bg: '#9b59b6',
             category: '엔터테인먼트',
             description: '가상의 음악 플레이어입니다. 플레이리스트를 만들고 관리하세요.',
             version: '1.0.0',
             size: '1.2 MB',
             icon: `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`
         },
-        // 수정후 코드
         {
             id: 'games',
             name: '게임',
-            bg: 'linear-gradient(135deg, #11998e, #38ef7d)',
+            bg: '#27ae60',
             category: '게임',
             description: '간단한 미니게임 모음입니다. 숫자 맞추기 게임을 즐겨보세요.',
             version: '1.0.0',
@@ -375,7 +374,7 @@ window.STPhone.Apps.Store = (function() {
         {
             id: 'calendar',
             name: '캘린더',
-            bg: 'linear-gradient(135deg, #ff6b6b, #ee5a5a)',
+            bg: '#e74c3c',
             category: '생산성',
             description: 'AI 응답에 날짜/요일을 자동으로 표시하고, 기념일을 관리합니다. RP 날짜 추적 기능!',
             version: '1.0.0',
