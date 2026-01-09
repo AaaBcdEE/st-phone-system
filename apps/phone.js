@@ -1544,51 +1544,59 @@ ${currentTurnLine}
         $('#st-log-viewer').remove();
         openLogViewer(index);
     }
-    /* ===============================================================
-       [NEW] AI 자동 전화 발신 시스템 (Prompt Injection + Observer)
-       =============================================================== */
-
-    // 1. AI 뇌에 "전화 거는 법" 주입 (참고한 확장의 프롬프트 원문)
     async function injectAiCallLogic() {
+        const parser = getSlashCommandParser();
+        if (!parser?.commands) return;
+
+        const ctx = window.SillyTavern?.getContext?.();
+        const charName = ctx?.characters?.[ctx?.characterId]?.name;
+
+        if (charName) {
+            const contacts = window.STPhone.Apps?.Contacts?.getAllContacts?.() || [];
+            const contact = contacts.find(c => c.name === charName);
+
+            if (contact?.disableProactiveCall) {
+                if (parser.commands['eject']) {
+                    try {
+                        await parser.commands['eject'].callback({}, 'st_phone_auto_call_logic');
+                    } catch (e) {}
+                }
+                return;
+            }
+        }
+
+        if (!parser.commands['inject']) return;
+
         const promptText = `
 [Phone Logic]
 If you want to initiate a voice call with User, append [call to user] at the very end of your response.
 NEVER decide the User's reaction or whether they pick up. Just generate the tag and stop.
 Wait for the system to process the call.`;
 
-        const parser = getSlashCommandParser();
-        if (parser && parser.commands['inject']) {
-            try {
-                // SillyTavern 시스템 프롬프트(Depth 2)에 몰래 끼워넣기
-                await parser.commands['inject'].callback({
-                    id: 'st_phone_auto_call_logic',
-                    position: 'chat',
-                    depth: 2,
-                    role: 'system'
-                }, promptText);
-            } catch (e) {
-                console.error("Call Logic Injection Failed", e);
-            }
-        }
+        try {
+            await parser.commands['inject'].callback({
+                id: 'st_phone_auto_call_logic',
+                position: 'chat',
+                depth: 2,
+                role: 'system'
+            }, promptText);
+        } catch (e) {}
     }
 
-    // 2. 채팅창 감시자 (AI가 [call to user] 태그를 쓰는지 지켜봄)
     function startIncomingCallObserver() {
         const chatRoot = document.getElementById('chat');
         if (!chatRoot) {
-            setTimeout(startIncomingCallObserver, 2000); // 로딩 덜 됐으면 재시도
+            setTimeout(startIncomingCallObserver, 2000);
             return;
         }
 
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
-                // 새 메시지가 떴을 때
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains('mes')) {
                         checkMessageForCallTag(node);
                     }
                 });
-                // 메시지가 수정될 때 (스트리밍)
                 if (mutation.type === 'characterData' || mutation.type === 'childList') {
                     const target = mutation.target.parentElement?.closest('.mes');
                     if (target) checkMessageForCallTag(target);
@@ -1597,21 +1605,12 @@ Wait for the system to process the call.`;
         });
 
         observer.observe(chatRoot, { childList: true, subtree: true });
-
-        // 프롬프트 주입도 같이 실행 (확실하게 하기 위해 5초마다 체크)
         setInterval(injectAiCallLogic, 5000);
-        console.log("📞 [Phone] AI Call Observer Started.");
     }
 
-    // 3. 메시지 검사 및 전화 발신 트리거
     function checkMessageForCallTag(msgNode) {
-        // 이미 처리한 메시지는 무시
         if (msgNode.dataset.callChecked) return;
-
-        // 유저 메시지나 시스템 메시지는 무시 (AI 메시지만)
         if (msgNode.getAttribute('is_user') === 'true') return;
-
-        // [중요] "마지막 메시지"일 때만 작동 (옛날 메시지 로딩될 때 전화 울리면 안 되니까)
         if (!msgNode.classList.contains('last_mes')) return;
 
         const textDiv = msgNode.querySelector('.mes_text');
@@ -1619,72 +1618,47 @@ Wait for the system to process the call.`;
 
         const html = textDiv.innerHTML;
 
-        // [call to user] 태그가 있는지 확인 (대소문자 무관)
         if (html.toLowerCase().includes('[call to user]')) {
-            msgNode.dataset.callChecked = "true"; // 처리 완료 도장 쾅
+            msgNode.dataset.callChecked = "true";
 
-            // 1. 화면에서 태그 지워주기 (깔끔하게)
             textDiv.innerHTML = html.replace(/\[call to user\]/gi, '').trim();
-
-            // 2. 누가 걸었는지 찾기
             const charName = msgNode.getAttribute('ch_name') || "Unknown";
-
-            console.log(`📞 [Phone] Call trigger detected from: ${charName}`);
-
-            // 3. 전화 수신 화면 띄우기
             triggerIncomingCallByName(charName);
         }
     }
 
-    // 1단계 교체 코드: apps/phone.js
     function triggerIncomingCallByName(name) {
-        // 주소록에서 이름 일치하는 사람 찾기
         const contacts = window.STPhone.Apps.Contacts.getAllContacts();
         let contact = contacts.find(c => c.name === name);
 
-        // 주소록에 없는 경우 (연락처 자동저장 기능 삭제됨)
         if (!contact) {
-            // 현재 실리태번의 캐릭터 이미지를 가져오기 위한 노력
             let avatar = 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png';
-
-            if (window.SillyTavern && window.SillyTavern.getContext) {
-                const ctx = window.SillyTavern.getContext();
-                // 현재 대화중인 캐릭터의 정보가 있다면 가져옴
-                if (ctx.characters && ctx.characterId !== undefined) {
-                    const charData = ctx.characters[ctx.characterId];
-                    // 이름이 같다면 그 캐릭터의 아바타 사용
-                    if (charData && charData.name === name && charData.avatar) {
-                        avatar = charData.avatar;
-                        if (!avatar.startsWith('http') && !avatar.startsWith('data')) {
-                            avatar = '/characters/' + avatar;
-                        }
+            const ctx = window.SillyTavern?.getContext?.();
+            if (ctx?.characters && ctx.characterId !== undefined) {
+                const charData = ctx.characters[ctx.characterId];
+                if (charData?.name === name && charData.avatar) {
+                    avatar = charData.avatar;
+                    if (!avatar.startsWith('http') && !avatar.startsWith('data')) {
+                        avatar = '/characters/' + avatar;
                     }
                 }
             }
 
-            // [핵심 변경] 저장하지 않고 임시 객체(Temp Object)만 만듭니다.
             contact = {
-                id: 'temp_' + Date.now(), // 임시 ID
+                id: 'temp_' + Date.now(),
                 name: name,
                 avatar: avatar,
-                persona: "", // 내용은 나중에 실리태번에서 직접 긁어옴
+                persona: "",
                 tags: "",
-                isTemp: true // 임시 연락처임을 표시
+                isTemp: true
             };
         }
 
-        // [NEW] 연락처에서 선제 전화 비활성화되어 있는지 확인
-        if (contact.disableProactiveCall) {
-            console.log(`📞 [Phone] ${contact.name}의 선제 전화가 비활성화됨`);
-            return;
-        }
+        if (contact.disableProactiveCall) return;
 
-        // 전화 수신 실행 (ID가 아니라 객체를 통째로 넘김)
         receiveCall(contact);
     }
 
-
-    // [최종] 감시자 자동 실행 (문서 로드 완료 시)
     $(document).ready(function() {
         setTimeout(startIncomingCallObserver, 3000);
     });
