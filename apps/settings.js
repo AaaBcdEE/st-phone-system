@@ -41,11 +41,9 @@ Text to translate:`,
 
 Text to translate:`,
 
-        // [설정 유지]
-        persistSettings: true,  // 새 채팅에도 설정 유지
-
-        // [기록 모드]
-        recordMode: 'refresh',  // 'refresh' (갱신, 기본값) 또는 'accumulate' (누적)
+        persistSettings: true,
+        recordMode: 'refresh',
+        branchCopyRecords: false,
 
         // ========== 프롬프트 설정 (새로 추가) ==========
         // [문자 앱 프롬프트]
@@ -524,6 +522,13 @@ function saveToStorage() {
                                     <div class="st-desc">새 채팅에서도 문자/전화 기록 유지</div>
                                 </div>
                                 <input type="checkbox" class="st-switch" id="st-set-record-mode">
+                            </div>
+                            <div class="st-row">
+                                <div>
+                                    <span class="st-label"><i class="fa-solid fa-code-branch" style="margin-right:6px;"></i>브랜치 기록 복사</span>
+                                    <div class="st-desc">브랜치 생성 시 문자/전화 기록 복사</div>
+                                </div>
+                                <input type="checkbox" class="st-switch" id="st-set-branch-copy">
                             </div>
                         </div>
                     </div>
@@ -1028,6 +1033,7 @@ function saveToStorage() {
         $('#st-set-darkmode').prop('checked', currentSettings.isDarkMode);
         $('#st-set-font').val(currentSettings.fontFamily);
         $('#st-set-record-mode').prop('checked', currentSettings.recordMode === 'accumulate');
+        $('#st-set-branch-copy').prop('checked', currentSettings.branchCopyRecords);
         // 프로필
         $('#st-set-name').val(currentSettings.userName);
         $('#st-set-personality').val(currentSettings.userPersonality);
@@ -1205,6 +1211,10 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
             } else if (newMode === 'refresh') {
                 toastr.info('🔄 기록 갱신 모드: 새 채팅 시 문자/전화 기록이 초기화됩니다');
             }
+        });
+        $('#st-set-branch-copy').on('change', function() {
+            currentSettings.branchCopyRecords = $(this).is(':checked');
+            saveToStorage();
         });
         $('#st-set-name').on('input', function() { currentSettings.userName = $(this).val(); saveToStorage(); });
         $('#st-set-personality').on('input', function() { currentSettings.userPersonality = $(this).val(); saveToStorage(); });

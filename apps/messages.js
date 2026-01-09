@@ -1832,6 +1832,8 @@ const msgs = getMessages(contactId);
             msgsHtml += getCustomTimestampHtml(ts.text, ts.id);
         });
 
+        $('.st-phone-home-area').hide();
+
         $screen.append(`
             ${css}
             <div class="st-chat-screen">
@@ -1899,7 +1901,10 @@ const msgs = getMessages(contactId);
     }
 
     function attachChatListeners(contactId, contact) {
-        $('#st-chat-back').off('click').on('click', open);
+        $('#st-chat-back').off('click').on('click', function() {
+            $('.st-phone-home-area').show();
+            open();
+        });
 
         $('#st-chat-messages').off('click', '[data-action="msg-option"]').on('click', '[data-action="msg-option"]', function(e) {
             if (bulkSelectMode) {
@@ -2074,6 +2079,8 @@ $('#st-chat-cam').off('click').on('click', () => {
             });
         }
 
+        $('.st-phone-home-area').hide();
+
         $screen.append(`
             ${css}
             <div class="st-chat-screen">
@@ -2121,7 +2128,10 @@ $('#st-chat-cam').off('click').on('click', () => {
     }
 
     function attachGroupChatListeners(groupId, group) {
-        $('#st-chat-back').on('click', open);
+        $('#st-chat-back').on('click', function() {
+            $('.st-phone-home-area').show();
+            open();
+        });
 
         $('#st-chat-input').on('input', function() {
             this.style.height = 'auto';
