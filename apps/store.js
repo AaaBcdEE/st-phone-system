@@ -15,7 +15,7 @@ window.STPhone.Apps.Store = (function() {
                 font-family: var(--pt-font, -apple-system, sans-serif);
                 box-sizing: border-box;
             }
-            
+
             .st-store-header {
                 padding: 20px 20px 10px;
                 flex-shrink: 0;
@@ -29,7 +29,7 @@ window.STPhone.Apps.Store = (function() {
                 font-size: 14px;
                 color: var(--pt-sub-text, #86868b);
             }
-            
+
             .st-store-tabs {
                 display: flex;
                 padding: 0 20px;
@@ -50,13 +50,13 @@ window.STPhone.Apps.Store = (function() {
                 color: var(--pt-accent, #007aff);
                 border-bottom-color: var(--pt-accent, #007aff);
             }
-            
+
             .st-store-content {
                 flex: 1;
                 overflow-y: auto;
                 padding: 20px;
             }
-            
+
             /* 추천 배너 */
             .st-store-featured {
                 background: var(--pt-accent, #007aff);
@@ -80,7 +80,7 @@ window.STPhone.Apps.Store = (function() {
                 opacity: 0.9;
                 line-height: 1.4;
             }
-            
+
             /* 섹션 헤더 */
             .st-store-section {
                 margin-bottom: 25px;
@@ -93,14 +93,14 @@ window.STPhone.Apps.Store = (function() {
                 justify-content: space-between;
                 align-items: center;
             }
-            
+
             /* 앱 카드 리스트 */
             .st-app-list {
                 display: flex;
                 flex-direction: column;
                 gap: 12px;
             }
-            
+
             .st-app-card {
                 display: flex;
                 align-items: center;
@@ -109,7 +109,7 @@ window.STPhone.Apps.Store = (function() {
                 border-radius: 14px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             }
-            
+
             .st-app-card-icon {
                 width: 60px; height: 60px;
                 border-radius: 14px;
@@ -120,7 +120,7 @@ window.STPhone.Apps.Store = (function() {
                 margin-right: 12px;
                 flex-shrink: 0;
             }
-            
+
             .st-app-card-info {
                 flex: 1;
                 min-width: 0;
@@ -142,12 +142,12 @@ window.STPhone.Apps.Store = (function() {
                 text-overflow: ellipsis;
                 white-space: nowrap;
             }
-            
+
             .st-app-card-action {
                 flex-shrink: 0;
                 margin-left: 10px;
             }
-            
+
             .st-install-btn {
                 padding: 8px 18px;
                 border-radius: 20px;
@@ -177,7 +177,7 @@ window.STPhone.Apps.Store = (function() {
                 background: #ff3b30;
                 color: white;
             }
-            
+
             /* 앱 상세 화면 */
             .st-app-detail {
                 position: absolute; top: 0; left: 0;
@@ -266,7 +266,7 @@ window.STPhone.Apps.Store = (function() {
                 background: var(--pt-border, #e5e5e5);
                 color: var(--pt-text-color, #000);
             }
-            
+
             .st-detail-section {
                 margin-top: 25px;
                 padding-top: 20px;
@@ -294,7 +294,7 @@ window.STPhone.Apps.Store = (function() {
             .st-detail-info-value {
                 font-weight: 500;
             }
-            
+
             /* 빈 상태 */
             .st-store-empty {
                 text-align: center;
@@ -328,7 +328,7 @@ window.STPhone.Apps.Store = (function() {
 
     // 기본 앱 (삭제 불가)
     const DEFAULT_APPS = ['phone', 'messages', 'contacts', 'camera', 'album', 'settings', 'store'];
-    
+
     // 스토어에서 제공하는 앱 목록
     const STORE_APPS = [
         {
@@ -380,11 +380,28 @@ window.STPhone.Apps.Store = (function() {
             version: '1.0.0',
             size: '0.5 MB',
             icon: `<svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h5v5H7z"/></svg>`
+        },
+        {
+            id: 'theme',
+            name: '테마',
+            bg: 'linear-gradient(135deg, #667eea, #764ba2)',
+            category: '커스터마이징',
+            description: '폰 전체 UI를 자유롭게 커스터마이징! 프레임, 배경, 말풍선 등을 꿈밀 수 있고 테마를 공유할 수도 있어요.',
+            version: '1.0.0',
+            size: '0.8 MB',
+            icon: '🎨'
         }
     ];
 
     let installedApps = [];
     let currentTab = 'discover';
+
+    // 전역 설치 앱 저장소 (테마 등 전역으로 유지되어야 하는 앱)
+    const GLOBAL_APPS = ['theme'];  // 전역으로 유지될 앱 목록
+
+    function getGlobalStorageKey() {
+        return 'st_phone_global_installed_apps';
+    }
 
     function getStorageKey() {
         const context = window.SillyTavern?.getContext?.();
@@ -393,23 +410,40 @@ window.STPhone.Apps.Store = (function() {
     }
 
     function loadInstalledApps() {
-        const key = getStorageKey();
-        if (!key) {
-            installedApps = [];
-            return;
-        }
+        // 1. 전역 앱 로드
+        let globalApps = [];
         try {
-            const saved = localStorage.getItem(key);
-            installedApps = saved ? JSON.parse(saved) : [];
-        } catch (e) {
-            installedApps = [];
+            const globalSaved = localStorage.getItem(getGlobalStorageKey());
+            globalApps = globalSaved ? JSON.parse(globalSaved) : [];
+        } catch (e) { globalApps = []; }
+
+        // 2. 채팅별 앱 로드
+        const key = getStorageKey();
+        let chatApps = [];
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                chatApps = saved ? JSON.parse(saved) : [];
+            } catch (e) { chatApps = []; }
         }
+
+        // 3. 합치기 (중복 제거)
+        installedApps = [...new Set([...globalApps, ...chatApps])];
     }
 
     function saveInstalledApps() {
+        // 전역 앱과 채팅별 앱 분리 저장
+        const globalApps = installedApps.filter(id => GLOBAL_APPS.includes(id));
+        const chatApps = installedApps.filter(id => !GLOBAL_APPS.includes(id));
+
+        // 전역 앱 저장
+        localStorage.setItem(getGlobalStorageKey(), JSON.stringify(globalApps));
+
+        // 채팅별 앱 저장
         const key = getStorageKey();
-        if (!key) return;
-        localStorage.setItem(key, JSON.stringify(installedApps));
+        if (key) {
+            localStorage.setItem(key, JSON.stringify(chatApps));
+        }
     }
 
     function isInstalled(appId) {
@@ -437,6 +471,12 @@ window.STPhone.Apps.Store = (function() {
         if (index > -1) {
             installedApps.splice(index, 1);
             saveInstalledApps();
+            
+            // 테마 앱 삭제 시 테마 데이터도 삭제
+            if (appId === 'theme' && window.STPhone.Apps?.Theme?.clearTheme) {
+                window.STPhone.Apps.Theme.clearTheme();
+            }
+            
             return true;
         }
         return false;
@@ -454,7 +494,7 @@ window.STPhone.Apps.Store = (function() {
 
     function open() {
         loadInstalledApps();
-        
+
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen || !$screen.length) return;
         $screen.empty();
@@ -466,14 +506,14 @@ window.STPhone.Apps.Store = (function() {
                     <div class="st-store-title">App Store</div>
                     <div class="st-store-subtitle">나만의 폰을 꾸며보세요</div>
                 </div>
-                
+
                 <input type="text" class="st-store-search" id="st-store-search" placeholder="🔍 앱 검색">
-                
+
                 <div class="st-store-tabs">
                     <div class="st-store-tab ${currentTab === 'discover' ? 'active' : ''}" data-tab="discover">발견</div>
                     <div class="st-store-tab ${currentTab === 'installed' ? 'active' : ''}" data-tab="installed">설치됨</div>
                 </div>
-                
+
                 <div class="st-store-content" id="st-store-content">
                 </div>
             </div>
@@ -499,7 +539,7 @@ window.STPhone.Apps.Store = (function() {
     function renderDiscoverTab($content) {
         const available = getAvailableApps();
         const installed = getInstalledStoreApps();
-        
+
         let html = `
             <div class="st-store-featured">
                 <div class="st-featured-label">새로운 앱</div>
@@ -544,7 +584,7 @@ window.STPhone.Apps.Store = (function() {
 
     function renderInstalledTab($content) {
         const installed = getInstalledStoreApps();
-        
+
         if (installed.length === 0) {
             $content.append(`
                 <div class="st-store-empty">
@@ -608,7 +648,7 @@ window.STPhone.Apps.Store = (function() {
                             <div class="st-detail-name">${app.name}</div>
                             <div class="st-detail-category">${app.category}</div>
                             <div class="st-detail-actions">
-                                ${installed 
+                                ${installed
                                     ? `<button class="st-detail-btn primary" id="st-detail-open" data-app-id="${app.id}">열기</button>
                                        <button class="st-detail-btn danger" id="st-detail-uninstall" data-app-id="${app.id}">삭제</button>`
                                     : `<button class="st-detail-btn primary" id="st-detail-install" data-app-id="${app.id}">받기</button>`
@@ -616,12 +656,12 @@ window.STPhone.Apps.Store = (function() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="st-detail-section">
                         <div class="st-detail-section-title">설명</div>
                         <div class="st-detail-desc">${app.description}</div>
                     </div>
-                    
+
                     <div class="st-detail-section">
                         <div class="st-detail-section-title">정보</div>
                         <div class="st-detail-info-row">
@@ -688,12 +728,14 @@ window.STPhone.Apps.Store = (function() {
             case 'music':
                 Apps.Music?.open();
                 break;
-            // 수정후 코드
             case 'games':
                 Apps.Games?.open();
                 break;
             case 'calendar':
                 Apps.Calendar?.open();
+                break;
+            case 'theme':
+                Apps.Theme?.open();
                 break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
@@ -751,7 +793,7 @@ window.STPhone.Apps.Store = (function() {
             const name = $(this).find('.st-app-card-name').text().toLowerCase();
             const category = $(this).find('.st-app-card-category').text().toLowerCase();
             const desc = $(this).find('.st-app-card-desc').text().toLowerCase();
-            
+
             if (name.includes(query) || category.includes(query) || desc.includes(query)) {
                 $(this).show();
             } else {

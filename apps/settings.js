@@ -243,16 +243,16 @@ function getStorageKey() {
     async function syncFromSillyTavern() {
         const ctx = window.SillyTavern?.getContext?.();
         if (!ctx?.substituteParams) return;
-        
+
         try {
             const userName = await ctx.substituteParams('{{user}}');
             const userPersona = await ctx.substituteParams('{{persona}}');
             let userAvatar = '';
-            
+
             if (ctx.user_avatar) {
                 userAvatar = `/User Avatars/${ctx.user_avatar}`;
             }
-            
+
             if (userName && userName !== '{{user}}') {
                 currentSettings.userName = userName;
                 $('#st-set-name').val(userName);
@@ -265,7 +265,7 @@ function getStorageKey() {
                 currentSettings.userAvatar = userAvatar;
                 $('#st-set-avatar-preview').attr('src', userAvatar);
             }
-            
+
             saveToStorage();
             console.log('[Settings] SillyTavern 페르소나 동기화 완료:', userName);
         } catch (e) {
@@ -283,18 +283,18 @@ function getStorageKey() {
 
 function loadFromStorage() {
         const key = getStorageKey();
-        
+
         // 1. 먼저 전역 설정 확인 (persistSettings가 켜져있으면 사용)
         const globalSettings = loadGlobalSettings();
-        
-        if (!key) { 
+
+        if (!key) {
             // 채팅 없을 때: 전역 설정 또는 기본값
             if (globalSettings && globalSettings.persistSettings) {
                 currentSettings = { ...defaultSettings, ...globalSettings };
             } else {
-                currentSettings = { ...defaultSettings }; 
+                currentSettings = { ...defaultSettings };
             }
-            return; 
+            return;
         }
 
         const saved = localStorage.getItem(key);
@@ -309,7 +309,7 @@ function loadFromStorage() {
         } else {
             currentSettings = { ...defaultSettings };
         }
-        
+
         // [NEW] 전역 프로필이 저장되어 있으면 적용
         const globalProfile = loadProfileGlobal();
         if (globalProfile && globalProfile.profileGlobal) {
@@ -414,7 +414,7 @@ function saveToStorage() {
     if (currentSettings.persistSettings) {
         saveGlobalSettings();
     }
-    
+
     // 이 부분이 핵심입니다: 켜져 있을 때만 저장하고, 꺼져 있으면 삭제합니다.
     if (currentSettings.profileGlobal) {
         saveProfileGlobal();
@@ -546,7 +546,7 @@ function saveToStorage() {
                                     <div class="st-checkbox-option-desc">새로고침이나 다른 캐릭터에서도 유지됩니다.</div>
                                 </div>
                             </div>
-                            
+
                             <!-- 아바타 -->
                             <div class="st-row" style="flex-direction: column; align-items: center; padding: 20px;">
                                 <img id="st-set-avatar-preview" src="" style="width:80px; height:80px; border-radius:50%; object-fit:cover; background:#ddd; margin-bottom:10px;">
@@ -554,7 +554,7 @@ function saveToStorage() {
                                     사진 변경 <input type="file" id="st-set-avatar-upload" accept="image/*" style="display:none;">
                                 </label>
                             </div>
-                            
+
                             <div class="st-row">
                                 <span class="st-label">내 이름</span>
                                 <input type="text" class="st-input" id="st-set-name" placeholder="User">
@@ -580,7 +580,7 @@ function saveToStorage() {
                                 </div>
                                 <input type="checkbox" class="st-switch" id="st-set-sync">
                             </div>
-                            
+
 <div class="st-row-block">
     <span class="st-label">Prefill (시작 문구)</span>
     <span class="st-desc">AI 대답을 이 문구로 시작하게 합니다.</span>
@@ -693,7 +693,7 @@ function saveToStorage() {
                                     <option value="divider">구분선</option>
                                 </select>
                             </div>
-                            
+
                             <div class="st-row">
                                 <div>
                                     <span class="st-label"><i class="fa-solid fa-globe" style="margin-right:6px;"></i>번역 기능</span>
@@ -701,7 +701,7 @@ function saveToStorage() {
                                 </div>
                                 <input type="checkbox" class="st-switch" id="st-set-translate">
                             </div>
-                            
+
                             <div id="st-translate-options" style="display:none;">
                                 <div class="st-row-block">
                                     <span class="st-label">표시 방식</span>
@@ -872,24 +872,24 @@ function saveToStorage() {
                     </div>
             </div>
             <style>
-                .st-settings-tabs { 
-                    display: flex; 
-                    border-bottom: 1px solid var(--pt-border); 
-                    background: var(--pt-card-bg); 
-                    margin: -20px -20px 20px -20px; 
-                    padding: 0 8px; 
+                .st-settings-tabs {
+                    display: flex;
+                    border-bottom: 1px solid var(--pt-border);
+                    background: var(--pt-card-bg);
+                    margin: -20px -20px 20px -20px;
+                    padding: 0 8px;
                     overflow-x: auto;
                     -webkit-overflow-scrolling: touch;
                     scrollbar-width: none;
                 }
                 .st-settings-tabs::-webkit-scrollbar { display: none; }
-                .st-set-tab { 
-                    padding: 14px 10px; 
-                    font-weight: 600; 
+                .st-set-tab {
+                    padding: 14px 10px;
+                    font-weight: 600;
                     font-size: 13px;
-                    color: var(--pt-sub-text); 
-                    cursor: pointer; 
-                    border-bottom: 2px solid transparent; 
+                    color: var(--pt-sub-text);
+                    cursor: pointer;
+                    border-bottom: 2px solid transparent;
                     white-space: nowrap;
                     flex-shrink: 0;
                 }
@@ -914,7 +914,7 @@ function saveToStorage() {
 
                 .st-btn-small { margin-top: 5px; padding: 6px 12px; background: var(--pt-border); border: none; border-radius: 8px; font-size: 12px; cursor: pointer; align-self: flex-start; }
                 .mono { font-family: 'SF Mono', 'Consolas', monospace !important; font-size: 12px !important; line-height: 1.5; }
-                
+
                 /* 체크박스 옵션 스타일 */
                 .st-checkbox-option {
                     display: flex;
@@ -949,7 +949,7 @@ function saveToStorage() {
                     color: var(--pt-sub-text, #86868b);
                     line-height: 1.4;
                 }
-                
+
                 /* 프롬프트 헤더 (라벨 + 깊이) */
                 .st-prompt-header {
                     display: flex;
@@ -982,7 +982,7 @@ function saveToStorage() {
                 .st-depth-input:focus {
                     outline: none;
                     border-color: var(--pt-accent, #007aff);
-                }                
+                }
                 /* 프롬프트 내보내기/불러오기 버튼 스타일 */
                 .st-prompt-io-btn {
                     flex: 1;
@@ -1076,19 +1076,19 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
         $('#st-set-translate-provider').val(currentSettings.translateProvider || 'google');
         $('#st-set-translate-prompt').val(currentSettings.translatePrompt);
         $('#st-set-user-translate-prompt').val(currentSettings.userTranslatePrompt); // 이 줄 추가
-        
+
         // 번역 켜져있으면 옵션 보이게
         if (currentSettings.translateEnabled) {
             $('#st-translate-options').show();
         }
-        
+
 // 모델 목록 업데이트
         updateTranslateModelList();
         $('#st-set-translate-model').val(currentSettings.translateModel || 'gemini-2.0-flash');
 
         // [NEW] 프롬프트 탭 값 로드
         $('#st-set-persist').prop('checked', currentSettings.persistSettings !== false);
-        
+
         // 깊이 값 로드
         const depths = currentSettings.promptDepth || defaultSettings.promptDepth;
         $('#st-depth-sms').val(depths.smsSystemPrompt || 0);
@@ -1097,7 +1097,7 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
         $('#st-depth-phone-call').val(depths.phoneCallPrompt || 0);
         $('#st-depth-camera').val(depths.cameraPrompt || 0);
         $('#st-depth-photo-msg').val(depths.photoMessagePrompt || 0);
-        
+
         $('#st-prompt-sms').val(currentSettings.smsSystemPrompt || defaultSettings.smsSystemPrompt);        $('#st-prompt-group').val(currentSettings.groupChatPrompt || defaultSettings.groupChatPrompt);
         $('#st-prompt-phone-pickup').val(currentSettings.phonePickupPrompt || defaultSettings.phonePickupPrompt);
         $('#st-prompt-phone-call').val(currentSettings.phoneCallPrompt || defaultSettings.phoneCallPrompt);
@@ -1209,7 +1209,7 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
         $('#st-set-name').on('input', function() { currentSettings.userName = $(this).val(); saveToStorage(); });
         $('#st-set-personality').on('input', function() { currentSettings.userPersonality = $(this).val(); saveToStorage(); });
         $('#st-set-tags').on('input', function() { currentSettings.userTags = $(this).val(); saveToStorage(); });
-        
+
         // 프로필 자동 동기화 토글
         $('#st-set-profile-autosync').on('change', function() {
             currentSettings.profileAutoSync = $(this).is(':checked');
@@ -1222,12 +1222,12 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
                 toastr.info('🔄 자동 동기화가 해제되었습니다');
             }
         });
-        
+
         // 아바타 업로드
         $('#st-set-avatar-upload').on('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = function(ev) {
                 const img = new Image();
@@ -1235,17 +1235,17 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
                     const canvas = document.createElement('canvas');
                     const MAX_SIZE = 200;
                     let width = img.width, height = img.height;
-                    
+
                     if (width > height) {
                         if (width > MAX_SIZE) { height = Math.round(height * MAX_SIZE / width); width = MAX_SIZE; }
                     } else {
                         if (height > MAX_SIZE) { width = Math.round(width * MAX_SIZE / height); height = MAX_SIZE; }
                     }
-                    
+
                     canvas.width = width;
                     canvas.height = height;
                     canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                    
+
                     const compressedUrl = canvas.toDataURL('image/jpeg', 0.8);
                     currentSettings.userAvatar = compressedUrl;
                     $('#st-set-avatar-preview').attr('src', compressedUrl);
@@ -1256,19 +1256,19 @@ $('#st-set-sms-persona').val(currentSettings.smsPersona);
             };
             reader.readAsDataURL(file);
         });
-        
+
         // 프로필 전역 저장 체크박스
-$('#st-set-profile-global').on('change', function() { 
-    currentSettings.profileGlobal = $(this).is(':checked'); 
-    
+$('#st-set-profile-global').on('change', function() {
+    currentSettings.profileGlobal = $(this).is(':checked');
+
     if (currentSettings.profileGlobal) {
-        saveToStorage(); 
+        saveToStorage();
         saveProfileGlobal();
         toastr.success('🔒 프로필이 전역 저장됩니다');
     } else {
         // 체크 해제 시 메모리에서 아예 삭제
         localStorage.removeItem('st_phone_global_profile');
-        saveToStorage(); 
+        saveToStorage();
         toastr.info('🔓 프로필 전역 저장이 해제되었습니다');
     }
 });
@@ -1278,9 +1278,9 @@ $('#st-set-sync').on('change', function() { currentSettings.chatToSms = $(this).
 $('#st-set-prefill').on('input', function() { currentSettings.prefill = $(this).val(); saveToStorage(); });
 $('#st-set-timestamp-mode').on('change', function() { currentSettings.timestampMode = $(this).val(); saveToStorage(); });
 $('#st-set-max-tokens').on('input', function() { currentSettings.maxContextTokens = parseInt($(this).val()) || 4096; saveToStorage(); });
-$('#st-set-connection-profile').on('change', function() { 
-    currentSettings.connectionProfileId = $(this).val(); 
-    saveToStorage(); 
+$('#st-set-connection-profile').on('change', function() {
+    currentSettings.connectionProfileId = $(this).val();
+    saveToStorage();
     const profileName = $(this).find('option:selected').text();
     if (currentSettings.connectionProfileId) {
         toastr.success(`🔗 Connection Profile 설정됨: ${profileName}`);
@@ -1426,7 +1426,7 @@ $('#st-reset-user-translate-prompt').on('click', () => {
         });
 
         // ========== [NEW] 프롬프트 탭 이벤트 ==========
-        
+
         // 깊이 설정 이벤트
         function updateDepth(key, value) {
             if (!currentSettings.promptDepth) {
@@ -1435,14 +1435,14 @@ $('#st-reset-user-translate-prompt').on('click', () => {
             currentSettings.promptDepth[key] = parseInt(value) || 0;
             saveToStorage();
         }
-        
+
         $('#st-depth-sms').on('change', function() { updateDepth('smsSystemPrompt', $(this).val()); });
         $('#st-depth-group').on('change', function() { updateDepth('groupChatPrompt', $(this).val()); });
         $('#st-depth-phone-pickup').on('change', function() { updateDepth('phonePickupPrompt', $(this).val()); });
         $('#st-depth-phone-call').on('change', function() { updateDepth('phoneCallPrompt', $(this).val()); });
         $('#st-depth-camera').on('change', function() { updateDepth('cameraPrompt', $(this).val()); });
         $('#st-depth-photo-msg').on('change', function() { updateDepth('photoMessagePrompt', $(this).val()); });
-        
+
         $('#st-set-persist').on('change', function() {
             currentSettings.persistSettings = $(this).is(':checked');
             saveToStorage();
@@ -1652,7 +1652,7 @@ $('#st-reset-user-translate-prompt').on('click', () => {
         };
 
         reader.readAsText(file);
-        
+
         // 파일 입력 초기화 (같은 파일 다시 선택 가능하도록)
         event.target.value = '';
     }
@@ -1662,6 +1662,13 @@ $('#st-reset-user-translate-prompt').on('click', () => {
         currentSettings.isDarkMode ? $phone.addClass('dark-mode') : $phone.removeClass('dark-mode');
     }
     function applyWallpaper() {
+        // 테마 앱에서 배경을 설정한 경우 세팅의 배경화면은 무시
+        if (window.STPhone.Apps?.Theme?.getCurrentTheme) {
+            const theme = window.STPhone.Apps.Theme.getCurrentTheme();
+            if (theme?.phone?.bgImage && theme.phone.bgImage.length > 0) {
+                return; // 테마 앱 배경 우선
+            }
+        }
         $('.st-phone-screen').css({ background: currentSettings.wallpaper, backgroundSize: 'cover', backgroundPosition: 'center' });
     }
     function applyFont() {
@@ -1672,14 +1679,14 @@ $('#st-reset-user-translate-prompt').on('click', () => {
     function init() {
         // 초기 로드
         loadFromStorage();
-        
+
         // 자동 동기화가 켜져 있으면 SillyTavern에서 페르소나 정보 가져오기
         if (currentSettings.profileAutoSync !== false) {
             setTimeout(() => {
                 syncFromSillyTavern();
             }, 500);
         }
-        
+
         // 초기화 시 한번 로드
         setInterval(() => {
              // 채팅방 바뀔때 감지 로직 (기존과 동일)

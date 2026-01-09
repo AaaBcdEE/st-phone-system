@@ -295,7 +295,7 @@ window.STPhone.Apps.Messages = (function() {
                 flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 10px;
                 display: flex; flex-direction: column; gap: 8px;
             }
-            
+
 /* 그룹챗 메시지 스타일 */
 .st-msg-wrapper {
                 display: flex;
@@ -327,10 +327,21 @@ window.STPhone.Apps.Messages = (function() {
                 font-weight: 600;
                 color: var(--pt-sub-text, #86868b);
             }
-            
-.st-msg-bubble { max-width: 75%; min-width: 40px; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-wrap: break-word; word-break: keep-all; position: relative; }
-            .st-msg-bubble.me { align-self: flex-end; background: var(--pt-accent, #007aff); color: white; border-bottom-right-radius: 4px; }
-            .st-msg-bubble.them { align-self: flex-start; background: var(--pt-card-bg, #e5e5ea); color: var(--pt-text-color, #000); border-bottom-left-radius: 4px; }
+
+            .st-msg-bubble {
+                max-width: var(--msg-bubble-width, 75%) !important;
+                min-width: fit-content;
+                padding: 10px 14px;
+                border-radius: var(--msg-bubble-radius, 18px);
+                font-size: var(--msg-font-size, 15px);
+                line-height: 1.4;
+                word-wrap: break-word;
+                word-break: break-word;
+                position: relative;
+                width: fit-content;
+            }
+            .st-msg-bubble.me { align-self: flex-end; background: var(--msg-my-bubble, var(--pt-accent, #007aff)); color: var(--msg-my-text, white); border-bottom-right-radius: 4px; }
+            .st-msg-bubble.them { align-self: flex-start; background: var(--msg-their-bubble, var(--pt-card-bg, #e5e5ea)); color: var(--msg-their-text, var(--pt-text-color, #000)); border-bottom-left-radius: 4px; }
             .st-msg-bubble.deleted { opacity: 0.6; font-style: italic; }
             .st-msg-image { max-width: 200px; border-radius: 12px; cursor: pointer; }
 
@@ -375,9 +386,9 @@ window.STPhone.Apps.Messages = (function() {
             .st-msg-bubble.them .st-msg-translation {
                 border-top-color: rgba(0,0,0,0.1);
             }
-                
-            /* 그룹챗 전용 말풍선 - 더 넓게 */
-            .st-msg-wrapper .st-msg-bubble { max-width: 100%; }
+
+            /* 그룹챗 전용 - wrapper 스타일 (말풍선 너비는 테마 설정 유지) */
+            .st-msg-wrapper { display: flex; flex-direction: column; }
             /* 입력창 영역 */
             .st-chat-input-area {
                 display: flex; align-items: flex-end; padding: 14px 16px; padding-bottom: 45px; gap: 10px;
@@ -451,7 +462,7 @@ window.STPhone.Apps.Messages = (function() {
             .st-photo-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
             .st-photo-btn.cancel { background: #e5e5ea; color: #000; }
             .st-photo-btn.send { background: var(--pt-accent, #007aff); color: white; }
-            
+
             /* 그룹 생성 모달 */
             .st-group-modal {
                 position: absolute; top:0; left:0; width:100%; height:100%;
@@ -520,7 +531,7 @@ window.STPhone.Apps.Messages = (function() {
             .st-group-btn.cancel { background: #e5e5ea; color: #000; }
             .st-group-btn.create { background: var(--pt-accent, #007aff); color: white; }
             .st-group-btn.create:disabled { background: #ccc; cursor: not-allowed; }
-            
+
             /* 아이폰 스타일 버블 알림 */
             .st-bubble-notification-container {
                 position: fixed;
@@ -544,21 +555,21 @@ window.STPhone.Apps.Messages = (function() {
                 animation: bubbleSlideOut 0.3s ease-in forwards;
             }
             @keyframes bubbleSlideIn {
-                from { 
+                from {
                     transform: translateX(120%);
                     opacity: 0;
                 }
-                to { 
+                to {
                     transform: translateX(0);
                     opacity: 1;
                 }
             }
             @keyframes bubbleSlideOut {
-                from { 
+                from {
                     transform: translateX(0);
                     opacity: 1;
                 }
-                to { 
+                to {
                     transform: translateX(120%);
                     opacity: 0;
                 }
@@ -592,7 +603,7 @@ window.STPhone.Apps.Messages = (function() {
             .st-bubble-text {
                 font-size: 14px;
             }
-            
+
             /* 타임스탬프/구분선 스타일 */
             .st-msg-timestamp {
                 text-align: center;
@@ -1121,7 +1132,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         const groups = loadGroups();
         const group = groups.find(g => g.id === groupId);
         if (!group) return;
-        
+
         if (!group.messages) group.messages = [];
         group.messages.push({
             senderId,
@@ -1189,7 +1200,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     function showBubbleNotification(senderName, text, avatarUrl, chatId, chatType) {
         const $container = ensureBubbleContainer();
         const bubbleId = 'bubble_' + Date.now();
-        
+
         const bubbleHtml = `
             <div class="st-bubble-notification" id="${bubbleId}" data-chat-id="${chatId}" data-chat-type="${chatType}">
                 <img class="st-bubble-avatar" src="${avatarUrl || DEFAULT_AVATAR}" onerror="this.src='${DEFAULT_AVATAR}'">
@@ -1199,30 +1210,30 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 </div>
             </div>
         `;
-        
+
         $container.append(bubbleHtml);
-        
+
         const $bubble = $(`#${bubbleId}`);
-        
+
         $bubble.on('click', function() {
             const id = $(this).data('chat-id');
             const type = $(this).data('chat-type');
-            
+
             $(this).addClass('hiding');
             setTimeout(() => $(this).remove(), 300);
-            
+
             const $phone = $('#st-phone-container');
             if (!$phone.hasClass('active')) {
                 $phone.addClass('active');
             }
-            
+
             if (type === 'group') {
                 openGroupChat(id);
             } else {
                 openChat(id);
             }
         });
-        
+
         setTimeout(() => {
             $bubble.addClass('hiding');
             setTimeout(() => $bubble.remove(), 300);
@@ -1237,7 +1248,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         for (let i = 0; i < lines.length; i++) {
             const lineText = lines[i].trim();
             if (!lineText) continue;
-            
+
             await new Promise(resolve => setTimeout(resolve, i * 400));
             showBubbleNotification(contactName, lineText, avatarUrl, contactId, chatType || 'dm');
         }
@@ -1432,11 +1443,11 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     function receiveGroupMessage(groupId, senderId, senderName, text, imageUrl = null) {
         // 1. 데이터에 저장
         addGroupMessage(groupId, senderId, senderName, text, imageUrl);
-        
+
         // 2. 현재 상태 확인
         const isPhoneActive = $('#st-phone-container').hasClass('active');
         const isViewingThisChat = (currentChatType === 'group' && currentGroupId === groupId);
-        
+
         // 3. 그룹 및 발신자 정보
         const group = getGroup(groupId);
         let senderAvatar = DEFAULT_AVATAR;
@@ -1444,16 +1455,16 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             const contact = window.STPhone.Apps.Contacts.getContact(senderId);
             if (contact) senderAvatar = contact.avatar || DEFAULT_AVATAR;
         }
-        
+
         // 4. 알림 처리
         if (!isPhoneActive || !isViewingThisChat) {
             // 안 읽음 카운트 증가
             const unread = getUnreadCount(groupId) + 1;
             setUnreadCount(groupId, unread);
-            
+
             // 홈 화면 배지 업데이트
             updateMessagesBadge();
-            
+
             // 알림 표시
             const preview = imageUrl ? '사진' : (text?.substring(0, 50) || '새 메시지');
             const displayName = `${group?.name || '그룹'} - ${senderName}`;
@@ -1479,10 +1490,10 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         currentContactId = null;
         currentGroupId = null;
         currentChatType = 'dm';
-        
+
         // 봇/유저 연락처 자동 동기화
         await window.STPhone.Apps?.Contacts?.syncAutoContacts?.();
-        
+
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen?.length) return;
         $screen.empty();
@@ -1500,7 +1511,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 </div>
                 <div class="st-messages-list" id="st-messages-list"></div>
             </div>
-            
+
             <!-- 그룹 생성 모달 -->
             <div class="st-group-modal" id="st-group-modal">
                 <div class="st-group-box">
@@ -1522,7 +1533,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     function renderDMList() {
         const $list = $('#st-messages-list');
         $list.empty();
-        
+
         const contacts = window.STPhone.Apps?.Contacts?.getAllContacts() || [];
         const allMsgs = loadAllMessages();
 
@@ -1554,7 +1565,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
     function renderGroupList() {
         const $list = $('#st-messages-list');
         $list.empty();
-        
+
         const groups = loadGroups();
 
         if (groups.length === 0) {
@@ -1566,7 +1577,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             const msgs = g.messages || [];
             const last = msgs[msgs.length - 1];
             const unread = getUnreadCount(g.id);
-            
+
             // 멤버 이름 목록
             let memberNames = [];
             if (window.STPhone.Apps?.Contacts) {
@@ -1575,7 +1586,7 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                     if (c) memberNames.push(c.name);
                 });
             }
-            
+
             $list.append(`
                 <div class="st-thread-item" data-id="${g.id}" data-type="group">
                     <div class="st-thread-avatar-group"><i class="fa-solid fa-users"></i></div>
@@ -1612,15 +1623,15 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
 
         // 새 그룹 버튼
         $('#st-new-group-btn').on('click', openGroupModal);
-        
+
         // 그룹 모달 닫기
         $('#st-group-cancel').on('click', () => {
             $('#st-group-modal').hide();
         });
-        
+
         // 그룹 생성
         $('#st-group-create').on('click', createNewGroup);
-        
+
         // 그룹명 입력 시 버튼 활성화 체크
         $('#st-group-name').on('input', checkGroupCreateBtn);
     }
@@ -1642,14 +1653,14 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         const contacts = window.STPhone.Apps?.Contacts?.getAllContacts() || [];
         const $contacts = $('#st-group-contacts');
         $contacts.empty();
-        
+
         if (contacts.length < 2) {
             $contacts.html('<div style="padding:20px;text-align:center;color:#999;">그룹을 만들려면 연락처가 2개 이상 필요합니다</div>');
             $('#st-group-create').prop('disabled', true);
             $('#st-group-modal').css('display', 'flex');
             return;
         }
-        
+
         contacts.forEach(c => {
             $contacts.append(`
                 <div class="st-group-contact-item" data-id="${c.id}">
@@ -1659,13 +1670,13 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 </div>
             `);
         });
-        
+
         // 연락처 선택 토글
         $('.st-group-contact-item').on('click', function() {
             $(this).toggleClass('selected');
             checkGroupCreateBtn();
         });
-        
+
         $('#st-group-name').val('');
         $('#st-group-modal').css('display', 'flex');
     }
@@ -1682,13 +1693,13 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
         $('.st-group-contact-item.selected').each(function() {
             memberIds.push($(this).data('id'));
         });
-        
+
         if (!name || memberIds.length < 2) return;
-        
+
         const group = createGroup(name, memberIds);
         $('#st-group-modal').hide();
         toastr.success(`👥 "${name}" 그룹이 생성되었습니다!`);
-        
+
         // 그룹 탭으로 전환
         $('.st-messages-tab').removeClass('active');
         $('.st-messages-tab[data-tab="group"]').addClass('active');
@@ -1862,6 +1873,29 @@ const msgs = getMessages(contactId);
 
         scrollToBottom();
         attachChatListeners(contactId, contact);
+
+        // 테마 앱의 배경 이미지 적용
+        applyMessageBackground();
+    }
+
+    // 메시지 앱 배경 이미지 적용 함수
+    function applyMessageBackground() {
+        if (window.STPhone.Apps?.Theme?.getCurrentTheme) {
+            const theme = window.STPhone.Apps.Theme.getCurrentTheme();
+            if (theme?.messages?.bgImage && theme.messages.bgImage.length > 0) {
+                const $chatMessages = $('#st-chat-messages');
+                if ($chatMessages.length) {
+                    $chatMessages.css({
+                        'background-image': `url("${theme.messages.bgImage}")`,
+                        'background-color': 'transparent',
+                        'background-size': 'cover',
+                        'background-position': 'center',
+                        'background-repeat': 'no-repeat'
+                    });
+                    console.log('🖼️ [Messages] Background applied');
+                }
+            }
+        }
     }
 
     function attachChatListeners(contactId, contact) {
@@ -1902,11 +1936,11 @@ $('#st-chat-translate-user').off('click').on('click', async function() {
     if (!text) return;
 
     $(this).text('⏳');
-    
+
     const settings = window.STPhone.Apps.Settings.getSettings();
     const prompt = settings.userTranslatePrompt || "Translate the following Korean text to English. Output ONLY the English translation.";
-    
-    const translated = await translateText(text, prompt);    
+
+    const translated = await translateText(text, prompt);
     if (translated) {
         $input.val(translated);
         $input.trigger('input');
@@ -2081,6 +2115,9 @@ $('#st-chat-cam').off('click').on('click', () => {
 
         scrollToBottom();
         attachGroupChatListeners(groupId, group);
+
+        // 테마 앱의 배경 이미지 적용
+        applyMessageBackground();
     }
 
     function attachGroupChatListeners(groupId, group) {
@@ -2108,7 +2145,7 @@ $('#st-chat-translate-user').on('click', async function() {
 // 설정에서 유저 전용 번역 프롬프트를 가져옴
     const settings = window.STPhone.Apps.Settings.getSettings();
     const prompt = settings.userTranslatePrompt || "Translate the following Korean text to English. Output ONLY the English translation.";
-    
+
     const translated = await translateText(text, prompt);
     if (translated) {
         $input.val(translated);
@@ -2235,22 +2272,22 @@ $('#st-chat-cam').on('click', () => {
         const myName = getUserName();
         const isMe = (senderName === myName || senderId === 'me');
         const $container = $('#st-chat-messages');
-        
+
         let avatar = DEFAULT_AVATAR;
         if (!isMe && window.STPhone.Apps?.Contacts) {
             const c = window.STPhone.Apps.Contacts.getContact(senderId);
             if (c) avatar = c.avatar || DEFAULT_AVATAR;
         }
-        
+
         let html = `<div class="st-msg-wrapper ${isMe ? 'me' : 'them'}">`;
-        
+
         if (!isMe) {
             html += `<div class="st-msg-sender-info">
                 <img class="st-msg-sender-avatar" src="${avatar}" onerror="this.src='${DEFAULT_AVATAR}'">
                 <span class="st-msg-sender-name">${senderName}</span>
             </div>`;
         }
-        
+
         if (imageUrl) {
             html += `<div class="st-msg-bubble ${isMe ? 'me' : 'them'}"><img class="st-msg-image" src="${imageUrl}"></div>`;
         }
@@ -2258,7 +2295,7 @@ $('#st-chat-cam').on('click', () => {
             html += `<div class="st-msg-bubble ${isMe ? 'me' : 'them'}">${text}</div>`;
         }
         html += `</div>`;
-        
+
         $container.find('#st-typing').before(html);
         scrollToBottom();
     }
@@ -2975,7 +3012,7 @@ Personality: ${settings.userPersonality || '(not specified)'}
     function getUserName() {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
         if (settings.userName) return settings.userName;
-        
+
         const ctx = window.SillyTavern?.getContext?.();
         return ctx?.name1 || 'User';
     }
@@ -3017,16 +3054,16 @@ async function translateText(originalText, overridePrompt = null) {
 
     const provider = settings.translateProvider || 'google';
     const model = settings.translateModel || 'gemini-2.0-flash';
-    
+
     // overridePrompt가 있으면 그것을 사용하고, 없으면 설정된 기본 프롬프트를 사용합니다.
     const translatePrompt = overridePrompt || settings.translatePrompt ||
-    `You are a Korean translator. Translate the following English text to natural Korean. 
-    IMPORTANT: You must preserve the EXACT same number of line breaks (newlines) as the original text. 
-    Each line of English must have exactly one corresponding line of Korean translation. 
+    `You are a Korean translator. Translate the following English text to natural Korean.
+    IMPORTANT: You must preserve the EXACT same number of line breaks (newlines) as the original text.
+    Each line of English must have exactly one corresponding line of Korean translation.
     Do not merge or split lines. Output ONLY the translated text.\n\nText to translate:`;
         try {
             // SillyTavern의 getRequestHeaders 함수 가져오기
-            const getRequestHeaders = window.SillyTavern?.getContext?.()?.getRequestHeaders || 
+            const getRequestHeaders = window.SillyTavern?.getContext?.()?.getRequestHeaders ||
                                        (() => ({ 'Content-Type': 'application/json' }));
 
             // 공급자별 chat_completion_source 설정
@@ -3070,7 +3107,7 @@ async function translateText(originalText, overridePrompt = null) {
             }
 
             const data = await response.json();
-            
+
             // 공급자별 결과 추출
             let result;
             switch (provider) {
@@ -3082,8 +3119,8 @@ async function translateText(originalText, overridePrompt = null) {
                     break;
                 case 'google':
                 case 'vertexai':
-                    result = data.candidates?.[0]?.content?.trim() || 
-                             data.choices?.[0]?.message?.content?.trim() || 
+                    result = data.candidates?.[0]?.content?.trim() ||
+                             data.choices?.[0]?.message?.content?.trim() ||
                              data.text?.trim();
                     break;
                 default:
@@ -3144,7 +3181,7 @@ async function translateText(originalText, overridePrompt = null) {
         try {
             const parser = getSlashCommandParserInternal();
             const sdCmd = parser?.commands['sd'] || parser?.commands['imagine'];
-            
+
             if (!sdCmd) {
                 toastr.warning("이미지 생성 확장이 필요합니다");
                 return null;
@@ -3159,7 +3196,7 @@ async function translateText(originalText, overridePrompt = null) {
             // 현재 대화 상대 태그
             let charName = '';
             let charTags = '';
-            
+
             if (currentChatType === 'dm' && currentContactId) {
                 const contact = window.STPhone.Apps.Contacts.getContact(currentContactId);
                 if (contact) {
@@ -4140,7 +4177,7 @@ ${modeHint}
 
     function getContactByName(name) {
         const contacts = window.STPhone.Apps?.Contacts?.getAllContacts() || [];
-        
+
         // 먼저 봇 연락처 ID로 찾기 (자동 생성된 봇 연락처 우선)
         const botContactId = window.STPhone.Apps?.Contacts?.getBotContactId?.();
         if (botContactId) {
@@ -4149,7 +4186,7 @@ ${modeHint}
                 return botContact;
             }
         }
-        
+
         // 일반 연락처에서 이름으로 찾기
         return contacts.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
     }
@@ -4169,18 +4206,18 @@ ${modeHint}
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
         console.debug('📱 [Proactive] check start', { charName, enabled: !!settings.proactiveEnabled, isGenerating });
-        
+
         if (!settings.proactiveEnabled) {
             console.debug('📱 [Proactive] disabled');
             return;
         }
-        
+
         const sinceLast = Date.now() - lastProactiveCheck;
         if (sinceLast < PROACTIVE_COOLDOWN) {
             console.debug('📱 [Proactive] cooldown', { sinceLast, cooldown: PROACTIVE_COOLDOWN });
             return;
         }
-        
+
         if (isGenerating) {
             console.debug('📱 [Proactive] blocked by isGenerating');
             return;
@@ -4190,7 +4227,7 @@ ${modeHint}
         const roll = Math.random() * 100;
 
         console.debug('📱 [Proactive] roll', { roll: Number(roll.toFixed(2)), chance });
-        
+
         if (roll > chance) {
             console.log(`📱 [Proactive] 확률 미달 (${roll.toFixed(0)}% > ${chance}%)`);
             return;
@@ -4200,17 +4237,17 @@ ${modeHint}
 
         // 1. 먼저 캐릭터 이름으로 연락처 찾기
         let contact = getContactByName(charName);
-        
+
         // 2. 없으면 자동 생성된 봇 연락처 가져오기
         if (!contact) {
             contact = await getBotContact();
         }
-        
+
         // 3. 그래도 없으면 랜덤 연락처
         if (!contact) {
             contact = getRandomContact();
         }
-        
+
         if (!contact) {
             console.log('📱 [Proactive] 연락처 없음');
             return;
@@ -4564,18 +4601,18 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
         console.debug('📱 [Airdrop] check start', { charName, enabled: !!settings.airdropEnabled, isAirdropGenerating });
-        
+
         if (!settings.airdropEnabled) {
             console.debug('📱 [Airdrop] disabled');
             return;
         }
-        
+
         const sinceLast = Date.now() - lastAirdropCheck;
         if (sinceLast < AIRDROP_COOLDOWN) {
             console.debug('📱 [Airdrop] cooldown', { sinceLast, cooldown: AIRDROP_COOLDOWN });
             return;
         }
-        
+
         if (isAirdropGenerating || isGenerating) {
             console.debug('📱 [Airdrop] blocked by generating state');
             return;
@@ -4585,7 +4622,7 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
         const roll = Math.random() * 100;
 
         console.debug('📱 [Airdrop] roll', { roll: Number(roll.toFixed(2)), chance });
-        
+
         if (roll > chance) {
             console.log(`📱 [Airdrop] 확률 미달 (${roll.toFixed(0)}% > ${chance}%)`);
             return;
@@ -4600,7 +4637,7 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
         if (!contact) {
             contact = getRandomContact();
         }
-        
+
         if (!contact) {
             console.log('📱 [Airdrop] 연락처 없음');
             return;
@@ -4786,10 +4823,10 @@ Description: "${photoDescription}"
     function syncExternalMessage(sender, text) {
         const contacts = window.STPhone.Apps?.Contacts?.getAllContacts() || [];
         if (contacts.length === 0) return;
-        
+
         const firstContact = contacts[0];
         addMessage(firstContact.id, sender, text);
-        
+
         if (sender === 'them') {
             const unread = getUnreadCount(firstContact.id) + 1;
             setUnreadCount(firstContact.id, unread);
