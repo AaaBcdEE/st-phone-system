@@ -441,14 +441,18 @@ window.STPhone.Apps.Streaming = (function() {
             }
 
             /* Action Input */
-            .st-streaming-action-area {
-                padding: 10px 15px;
-                background: #0e0e10;
-                border-top: 1px solid #3d3d3d;
-                display: flex;
-                gap: 10px;
-                flex-shrink: 0;
-            }
+            /* 이 부분을 찾아서 아래처럼 바꿔보세요! */
+.st-streaming-action-area {
+    padding: 10px 15px;
+    background: #0e0e10;
+    border-top: 1px solid #3d3d3d;
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+
+    /* 아래 한 줄을 추가해서 위로 확 올립니다 */
+    margin-bottom: 80px;
+}
             .st-streaming-action-input {
                 flex: 1;
                 padding: 12px;
