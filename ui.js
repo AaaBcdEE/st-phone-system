@@ -256,6 +256,12 @@ window.STPhone.UI = (function() {
             case 'theme':
                 Apps.Theme?.open();
                 break;
+            case 'bank':
+                Apps.Bank?.open();
+                break;
+            case 'streaming':
+                Apps.Streaming?.open();
+                break;
             default:
                 toastr.warning('앱을 찾을 수 없습니다.');
         }

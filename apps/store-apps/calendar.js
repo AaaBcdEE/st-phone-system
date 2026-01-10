@@ -15,7 +15,7 @@ window.STPhone.Apps.Calendar = (function() {
                 font-family: var(--pt-font, -apple-system, sans-serif);
                 box-sizing: border-box;
             }
-            
+
             /* 헤더 */
             .st-calendar-header {
                 padding: 20px 20px 15px;
@@ -36,7 +36,7 @@ window.STPhone.Apps.Calendar = (function() {
                 color: var(--pt-sub-text, #86868b);
                 font-style: italic;
             }
-            
+
             /* 토글 섹션 */
             .st-calendar-toggle-section {
                 padding: 14px 20px;
@@ -86,7 +86,7 @@ window.STPhone.Apps.Calendar = (function() {
             .st-calendar-toggle.active::after {
                 transform: translateX(20px);
             }
-            
+
             /* 캘린더 네비게이션 */
             .st-calendar-nav {
                 display: flex;
@@ -107,7 +107,7 @@ window.STPhone.Apps.Calendar = (function() {
                 font-size: 17px;
                 font-weight: 600;
             }
-            
+
             /* 캘린더 그리드 */
             .st-calendar-weekdays {
                 display: grid;
@@ -128,7 +128,7 @@ window.STPhone.Apps.Calendar = (function() {
             .st-calendar-weekday:last-child {
                 color: #007aff;
             }
-            
+
             .st-calendar-days {
                 display: grid;
                 grid-template-columns: repeat(7, 1fr);
@@ -184,7 +184,7 @@ window.STPhone.Apps.Calendar = (function() {
                 color: var(--pt-sub-text, #ccc);
                 opacity: 0.4;
             }
-            
+
             /* 이벤트 리스트 */
             .st-calendar-events-section {
                 flex: 1;
@@ -212,7 +212,7 @@ window.STPhone.Apps.Calendar = (function() {
                 align-items: center;
                 justify-content: center;
             }
-            
+
             .st-calendar-events-list {
                 display: flex;
                 flex-direction: column;
@@ -289,7 +289,7 @@ window.STPhone.Apps.Calendar = (function() {
             .st-calendar-event-delete:hover {
                 opacity: 1;
             }
-            
+
             .st-calendar-empty {
                 text-align: center;
                 padding: 30px 20px;
@@ -300,7 +300,7 @@ window.STPhone.Apps.Calendar = (function() {
                 margin-bottom: 8px;
                 opacity: 0.5;
             }
-            
+
             /* 모달 */
             .st-calendar-modal {
                 position: absolute;
@@ -382,7 +382,7 @@ window.STPhone.Apps.Calendar = (function() {
                 background: var(--pt-accent, #007aff);
                 color: white;
             }
-            
+
             /* 선택된 날짜 표시 */
             .st-calendar-selected-date {
                 background: var(--pt-card-bg, #fff);
@@ -474,10 +474,10 @@ window.STPhone.Apps.Calendar = (function() {
 
     function getDDay(event) {
         if (!rpDate) return { text: '-', class: '' };
-        
+
         const rpDateObj = new Date(rpDate.year, rpDate.month - 1, rpDate.day);
         let eventDateObj;
-        
+
         if (event.year) {
             // 년도가 지정된 경우
             eventDateObj = new Date(event.year, event.month - 1, event.day);
@@ -489,10 +489,10 @@ window.STPhone.Apps.Calendar = (function() {
                 eventDateObj = new Date(rpDate.year + 1, event.month - 1, event.day);
             }
         }
-        
+
         const diffTime = eventDateObj - rpDateObj;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays === 0) return { text: 'D-Day', class: 'today' };
         if (diffDays < 0) return { text: `D+${Math.abs(diffDays)}`, class: 'past' };
         return { text: `D-${diffDays}`, class: '' };
@@ -500,26 +500,26 @@ window.STPhone.Apps.Calendar = (function() {
 
     function sortEventsByDDay(eventsList) {
         if (!rpDate) return eventsList;
-        
+
         const rpDateObj = new Date(rpDate.year, rpDate.month - 1, rpDate.day);
-        
+
         return eventsList.slice().sort((a, b) => {
             let dateA, dateB;
-            
+
             if (a.year) {
                 dateA = new Date(a.year, a.month - 1, a.day);
             } else {
                 dateA = new Date(rpDate.year, a.month - 1, a.day);
                 if (dateA < rpDateObj) dateA = new Date(rpDate.year + 1, a.month - 1, a.day);
             }
-            
+
             if (b.year) {
                 dateB = new Date(b.year, b.month - 1, b.day);
             } else {
                 dateB = new Date(rpDate.year, b.month - 1, b.day);
                 if (dateB < rpDateObj) dateB = new Date(rpDate.year + 1, b.month - 1, b.day);
             }
-            
+
             return dateA - dateB;
         });
     }
@@ -563,7 +563,7 @@ window.STPhone.Apps.Calendar = (function() {
                 const dday = getDDay(ev);
                 return dday.class !== 'past';
             }).slice(0, 5);
-            
+
             if (upcomingEvents.length > 0) {
                 prompt += `\n\n[참고: 다가오는 기념일/이벤트]`;
                 upcomingEvents.forEach(ev => {
@@ -605,7 +605,7 @@ window.STPhone.Apps.Calendar = (function() {
     function extractDateFromResponse(text) {
         const dateRegex = /\[(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\]/;
         const match = text.match(dateRegex);
-        
+
         if (match) {
             return {
                 year: parseInt(match[1]),
@@ -622,49 +622,49 @@ window.STPhone.Apps.Calendar = (function() {
     function renderCalendarGrid() {
         const daysInMonth = getDaysInMonth(viewYear, viewMonth);
         const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
-        
+
         // 이전 달 정보
         const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
         const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
         const daysInPrevMonth = getDaysInMonth(prevYear, prevMonth);
-        
+
         let daysHtml = '';
-        
+
         // 이전 달 날짜들 (빈 칸)
         for (let i = 0; i < firstDay; i++) {
             const day = daysInPrevMonth - firstDay + 1 + i;
             daysHtml += `<div class="st-calendar-day empty other-month">${day}</div>`;
         }
-        
+
         // 이번 달 날짜들
         for (let day = 1; day <= daysInMonth; day++) {
             const isToday = isRpToday(viewYear, viewMonth, day);
             const hasEvent = hasEventOnDay(viewYear, viewMonth, day);
             const dayOfWeek = new Date(viewYear, viewMonth - 1, day).getDay();
-            
+
             let classes = 'st-calendar-day';
             if (isToday) classes += ' today';
             if (hasEvent) classes += ' has-event';
             if (dayOfWeek === 0) classes += ' sunday';
             if (dayOfWeek === 6) classes += ' saturday';
-            
+
             daysHtml += `<div class="${classes}" data-year="${viewYear}" data-month="${viewMonth}" data-day="${day}">${day}</div>`;
         }
-        
+
         // 다음 달 날짜들 (남은 칸 채우기)
         const totalCells = firstDay + daysInMonth;
         const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
         for (let i = 1; i <= remainingCells; i++) {
             daysHtml += `<div class="st-calendar-day empty other-month">${i}</div>`;
         }
-        
+
         return daysHtml;
     }
 
     // ========== 앱 UI ==========
     function open() {
         loadData();
-        
+
         const $screen = window.STPhone.UI.getContentElement();
         if (!$screen || !$screen.length) return;
         $screen.empty();
@@ -718,7 +718,7 @@ window.STPhone.Apps.Calendar = (function() {
                     <div class="st-calendar-title">📅 캘린더</div>
                     <div class="st-calendar-rp-date-display ${rpDateClass}">${rpDateStr}</div>
                 </div>
-                
+
                 <div class="st-calendar-toggle-section">
                     <div class="st-calendar-toggle-info">
                         <div class="st-calendar-toggle-label">날짜 프롬프트 활성화</div>
@@ -726,21 +726,21 @@ window.STPhone.Apps.Calendar = (function() {
                     </div>
                     <div class="st-calendar-toggle ${isEnabled ? 'active' : ''}" id="st-calendar-toggle"></div>
                 </div>
-                
+
                 <div class="st-calendar-nav">
                     <button class="st-calendar-nav-btn" id="st-cal-prev">‹</button>
                     <div class="st-calendar-nav-title" id="st-cal-nav-title">${viewYear}년 ${viewMonth}월</div>
                     <button class="st-calendar-nav-btn" id="st-cal-next">›</button>
                 </div>
-                
+
                 <div class="st-calendar-weekdays">
                     ${WEEKDAY_NAMES.map((d, i) => `<div class="st-calendar-weekday">${d}</div>`).join('')}
                 </div>
-                
+
                 <div class="st-calendar-days" id="st-calendar-days">
                     ${renderCalendarGrid()}
                 </div>
-                
+
                 <div class="st-calendar-events-section">
                     <div class="st-calendar-section-title">
                         <span>🎉 기념일</span>
@@ -818,14 +818,14 @@ window.STPhone.Apps.Calendar = (function() {
         for (let y = currentViewYear - 10; y <= currentViewYear + 10; y++) {
             yearOptions.push(`<option value="${y}" ${y === currentViewYear ? 'selected' : ''}>${y}년</option>`);
         }
-        
+
         // 월 옵션
-        const monthOptions = Array.from({length: 12}, (_, i) => 
+        const monthOptions = Array.from({length: 12}, (_, i) =>
             `<option value="${i + 1}" ${(i + 1) === month ? 'selected' : ''}>${i + 1}월</option>`
         ).join('');
-        
+
         // 일 옵션
-        const dayOptions = Array.from({length: 31}, (_, i) => 
+        const dayOptions = Array.from({length: 31}, (_, i) =>
             `<option value="${i + 1}" ${(i + 1) === day ? 'selected' : ''}>${i + 1}일</option>`
         ).join('');
 
@@ -834,12 +834,12 @@ window.STPhone.Apps.Calendar = (function() {
                 <div class="st-calendar-modal-content">
                     <div class="st-calendar-modal-title">🎉 기념일 추가</div>
                     <input type="text" class="st-calendar-modal-input" id="st-event-title" placeholder="기념일 이름 (예: 결혼기념일)">
-                    
+
                     <div class="st-calendar-modal-checkbox">
                         <input type="checkbox" id="st-event-has-year">
                         <label for="st-event-has-year">특정 년도 지정 (체크 해제 시 매년 반복)</label>
                     </div>
-                    
+
                     <div class="st-calendar-modal-row">
                         <select class="st-calendar-modal-select" id="st-event-year" disabled style="opacity:0.5;">
                             ${yearOptions.join('')}
@@ -851,7 +851,7 @@ window.STPhone.Apps.Calendar = (function() {
                             ${dayOptions}
                         </select>
                     </div>
-                    
+
                     <div class="st-calendar-modal-buttons">
                         <button class="st-calendar-modal-btn cancel" id="st-event-cancel">취소</button>
                         <button class="st-calendar-modal-btn confirm" id="st-event-confirm">추가</button>
@@ -924,6 +924,7 @@ window.STPhone.Apps.Calendar = (function() {
     // ========== RP 날짜 업데이트 ==========
     function updateRpDate(dateInfo) {
         loadData();
+        const oldDate = rpDate;
         rpDate = dateInfo;
         // 캘린더 뷰도 해당 날짜로 이동
         if (rpDate) {
@@ -931,6 +932,21 @@ window.STPhone.Apps.Calendar = (function() {
             viewMonth = rpDate.month;
         }
         saveData();
+
+        // [NEW] 은행 앱 고정 지출/입금 처리
+        if (dateInfo && (!oldDate || oldDate.day !== dateInfo.day || oldDate.month !== dateInfo.month || oldDate.year !== dateInfo.year)) {
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && Store.isInstalled('bank')) {
+                    const Bank = window.STPhone?.Apps?.Bank;
+                    if (Bank && typeof Bank.processRecurringOnDateChange === 'function') {
+                        Bank.processRecurringOnDateChange(dateInfo);
+                    }
+                }
+            } catch (e) {
+                console.warn('[Calendar] Bank recurring processing failed:', e);
+            }
+        }
     }
 
     // ========== 외부 API ==========
@@ -947,7 +963,7 @@ window.STPhone.Apps.Calendar = (function() {
     function processAiResponse(text) {
         try {
             if (!text || typeof text !== 'string') return text;
-            
+
             const dateInfo = extractDateFromResponse(text);
             if (dateInfo) {
                 updateRpDate(dateInfo);

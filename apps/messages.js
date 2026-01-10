@@ -24,6 +24,29 @@ window.STPhone.Apps.Messages = (function() {
         }
     }
 
+    // 송금/출금 태그를 예쁜 문자열로 변환 (화면 표시용)
+    function formatBankTagForDisplay(text) {
+        if (!text) return text;
+        
+        // 송금 패턴: [💰 보내는사람 송금 받는사람: 금액]
+        // 예: [💰 ㅇㅇ 송금 잭: 2₩] → 💰 ㅇㅇ님이 잭님에게 2원을 송금했습니다.
+        text = text.replace(/\[💰\s*(.+?)\s+송금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi, 
+            (match, sender, receiver, amount) => {
+                return `💰 ${sender.trim()}님이 ${receiver.trim()}님에게 ${amount.trim()}원을 송금했습니다.`;
+            });
+        
+        // 출금 패턴: [💰 가게이름 출금 유저: 금액]
+        text = text.replace(/\[💰\s*(.+?)\s+출금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi, 
+            (match, shop, user, amount) => {
+                return `💰 ${shop.trim()}에서 ${amount.trim()}원 결제`;
+            });
+        
+        // 잔액 패턴: [💰 유저 잔액: 금액] - 숨김 처리
+        text = text.replace(/\[💰\s*.+?\s+잔액\s*[:\s：]+\s*[\$₩€¥£]?\s*[\d,]+\s*[\$₩€¥£원]?\s*\]/gi, '');
+        
+        return text.trim();
+    }
+
     /**
      * AI 생성 함수 - 멀티턴 메시지 배열 지원
      * @param {string|Array} promptOrMessages - 단일 프롬프트 문자열 또는 메시지 배열 [{role, content}, ...]
@@ -329,16 +352,16 @@ window.STPhone.Apps.Messages = (function() {
             }
 
             .st-msg-bubble {
-                max-width: var(--msg-bubble-width, 75%) !important;
-                min-width: fit-content;
+                max-width: 75%;
+                min-width: 40px;
                 padding: 10px 14px;
-                border-radius: var(--msg-bubble-radius, 18px);
-                font-size: var(--msg-font-size, 15px);
+                border-radius: 18px;
+                font-size: 15px;
                 line-height: 1.4;
                 word-wrap: break-word;
                 word-break: break-word;
                 position: relative;
-                width: fit-content;
+                display: inline-block;
             }
             .st-msg-bubble.me { align-self: flex-end; background: var(--msg-my-bubble, var(--pt-accent, #007aff)); color: var(--msg-my-text, white); border-bottom-right-radius: 4px; }
             .st-msg-bubble.them { align-self: flex-start; background: var(--msg-their-bubble, var(--pt-card-bg, #e5e5ea)); color: var(--msg-their-text, var(--pt-text-color, #000)); border-bottom-left-radius: 4px; }
@@ -1325,13 +1348,15 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
                 const side = 'them';
                 const clickAttr = `data-action="msg-option" data-idx="${newIdx}" data-line-idx="0" data-sender="${side}" class="st-msg-bubble ${side} clickable" style="cursor:pointer;" title="옵션 보기"`;
 
-                let bubbleContent = lineText;
+                // 송금/출금 태그 변환 적용
+                const displayLineText = formatBankTagForDisplay(lineText);
+                let bubbleContent = displayLineText;
                 if (translatedText) {
                     const displayMode = settings.translateDisplayMode || 'both';
                     if (displayMode === 'korean') {
                         bubbleContent = translatedText;
                     } else {
-                        bubbleContent = `<div class="st-msg-original">${lineText}</div><div class="st-msg-translation">${translatedText}</div>`;
+                        bubbleContent = `<div class="st-msg-original">${displayLineText}</div><div class="st-msg-translation">${translatedText}</div>`;
                     }
                 }
 
@@ -1390,16 +1415,29 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             }
         }
 
+        // 채팅방 보고 있으면 말풍선 추가
+        if (isPhoneActive && isViewingThisChat) {
+            appendBubble('them', text, imageUrl, newIdx, translatedText, replyTo);
+        }
+
+        // 채팅방 안 보고 있을 때만 알림
         if (!isPhoneActive || !isViewingThisChat) {
             const unread = getUnreadCount(contactId) + 1;
             setUnreadCount(contactId, unread);
             updateMessagesBadge();
 
-            const previewText = translatedText || text;
-            const preview = imageUrl ? '사진' : (previewText?.substring(0, 50) || '새 메시지');
+            // 알림 미리보기 - 송금 태그는 간단하게 표시
+            let preview;
+            if (imageUrl) {
+                preview = '사진';
+            } else if (/\[💰.*송금.*:/.test(text)) {
+                preview = '💰 송금 알림';
+            } else if (/\[💰.*출금.*:/.test(text)) {
+                preview = '💰 결제 알림';
+            } else {
+                preview = (translatedText || text)?.substring(0, 50) || '새 메시지';
+            }
             showNotification(contactName, preview, contactAvatar, contactId, 'dm');
-        } else {
-            appendBubble('them', text, imageUrl, newIdx, translatedText, replyTo);
         }
     }
 
@@ -1546,12 +1584,21 @@ function addMessage(contactId, sender, text, imageUrl = null, addTimestamp = fal
             const msgs = allMsgs[c.id] || [];
             const last = msgs[msgs.length - 1];
             const unread = getUnreadCount(c.id);
+            // 미리보기 텍스트에 송금/출금 태그 변환 적용
+            let previewText = '새 대화';
+            if (last) {
+                if (last.image) {
+                    previewText = '사진';
+                } else if (last.text) {
+                    previewText = formatBankTagForDisplay(last.text);
+                }
+            }
             $list.append(`
                 <div class="st-thread-item" data-id="${c.id}" data-type="dm">
                     <img class="st-thread-avatar" src="${c.avatar || DEFAULT_AVATAR}" onerror="this.src='${DEFAULT_AVATAR}'">
                     <div class="st-thread-info">
                         <div class="st-thread-name">${c.name}</div>
-                        <div class="st-thread-preview">${last ? (last.image ? '사진' : last.text) : '새 대화'}</div>
+                        <div class="st-thread-preview">${previewText}</div>
                     </div>
                     <div class="st-thread-meta">
                         ${last ? `<div class="st-thread-time">${formatTime(last.timestamp)}</div>` : ''}
@@ -1797,7 +1844,8 @@ const msgs = getMessages(contactId);
                     let lineIdx = 0;
 
                     lines.forEach((line, idx) => {
-                        const trimmed = line.trim();
+                        // 송금/출금 태그 변환 적용
+                        const trimmed = formatBankTagForDisplay(line.trim());
                         if(trimmed) {
                             let bubbleContent = '';
                             const lineAttr = `data-action="msg-option" data-idx="${index}" data-line-idx="${lineIdx}" data-sender="${side}" class="st-msg-bubble ${side} clickable" style="cursor:pointer;" title="옵션 보기"`;
@@ -1831,8 +1879,6 @@ const msgs = getMessages(contactId);
         trailingTimestamps.forEach(ts => {
             msgsHtml += getCustomTimestampHtml(ts.text, ts.id);
         });
-
-        $('.st-phone-home-area').hide();
 
         $screen.append(`
             ${css}
@@ -1880,31 +1926,49 @@ const msgs = getMessages(contactId);
         applyMessageBackground();
     }
 
-    // 메시지 앱 배경 이미지 적용 함수
+    // 메시지 앱 테마 스타일 적용 함수
     function applyMessageBackground() {
         if (window.STPhone.Apps?.Theme?.getCurrentTheme) {
             const theme = window.STPhone.Apps.Theme.getCurrentTheme();
-            if (theme?.messages?.bgImage && theme.messages.bgImage.length > 0) {
-                const $chatMessages = $('#st-chat-messages');
+            if (!theme?.messages) return;
+
+            const messages = theme.messages;
+            const $chatMessages = $('#st-chat-messages');
+
+            // 배경 이미지 적용
+            if (messages.bgImage && messages.bgImage.length > 0) {
                 if ($chatMessages.length) {
                     $chatMessages.css({
-                        'background-image': `url("${theme.messages.bgImage}")`,
+                        'background-image': `url("${messages.bgImage}")`,
                         'background-color': 'transparent',
                         'background-size': 'cover',
                         'background-position': 'center',
                         'background-repeat': 'no-repeat'
                     });
-                    console.log('🖼️ [Messages] Background applied');
                 }
             }
+
+            // 말풍선 스타일 적용 - !important로 강제 적용
+            const bubbleWidth = messages.bubbleMaxWidth || 75;
+            const bubbleRadius = messages.bubbleRadius || 18;
+            const bubbleFontSize = messages.fontSize || 15;
+
+            $('.st-msg-bubble').each(function() {
+                this.style.cssText += `max-width: ${bubbleWidth}% !important; border-radius: ${bubbleRadius}px !important; font-size: ${bubbleFontSize}px !important;`;
+            });
+            $('.st-msg-bubble.me').each(function() {
+                this.style.cssText += `background: ${messages.myBubbleColor} !important; color: ${messages.myBubbleTextColor} !important; border-bottom-right-radius: 4px !important;`;
+            });
+            $('.st-msg-bubble.them').each(function() {
+                this.style.cssText += `background: ${messages.theirBubbleColor} !important; color: ${messages.theirBubbleTextColor} !important; border-bottom-left-radius: 4px !important;`;
+            });
+
+            console.log('🖼️ [Messages] Theme applied, bubble width:', bubbleWidth + '%');
         }
     }
 
     function attachChatListeners(contactId, contact) {
-        $('#st-chat-back').off('click').on('click', function() {
-            $('.st-phone-home-area').show();
-            open();
-        });
+        $('#st-chat-back').off('click').on('click', open);
 
         $('#st-chat-messages').off('click', '[data-action="msg-option"]').on('click', '[data-action="msg-option"]', function(e) {
             if (bulkSelectMode) {
@@ -2079,8 +2143,6 @@ $('#st-chat-cam').off('click').on('click', () => {
             });
         }
 
-        $('.st-phone-home-area').hide();
-
         $screen.append(`
             ${css}
             <div class="st-chat-screen">
@@ -2128,10 +2190,7 @@ $('#st-chat-cam').off('click').on('click', () => {
     }
 
     function attachGroupChatListeners(groupId, group) {
-        $('#st-chat-back').on('click', function() {
-            $('.st-phone-home-area').show();
-            open();
-        });
+        $('#st-chat-back').on('click', open);
 
         $('#st-chat-input').on('input', function() {
             this.style.height = 'auto';
@@ -2249,7 +2308,8 @@ $('#st-chat-cam').on('click', () => {
             const translatedLines = translatedText ? translatedText.split('\n') : [];
 
             lines.forEach((line, idx) => {
-                const trimmed = line.trim();
+                // 송금/출금 태그 변환 적용
+                const trimmed = formatBankTagForDisplay(line.trim());
                 if(trimmed) {
                     let bubbleContent = '';
 
@@ -2643,8 +2703,7 @@ Respond naturally as ${contact.name} would when someone sends multiple messages 
 Consider: Are you annoyed? Amused? Concerned? Playful?
 Keep it short and casual (SMS style).
 DO NOT use quotation marks. DO NOT write prose.
-If you want to ignore, reply ONLY with: [IGNORE]
-${prefill ? `Start your response with: ${prefill}` : ''}`;
+If you want to ignore, reply ONLY with: [IGNORE]`;
 
             messages.push({ role: 'system', content: systemContent });
 
@@ -2676,12 +2735,13 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
             // 3. 연속으로 보낸 메시지들
             messages.push({ role: 'user', content: `[Rapid-fire messages from ${myName}]:\n${recentMessages}` });
 
+            // [NEW] 프리필이 있으면 assistant role로 추가 (AI가 이어서 작성)
+            if (prefill) {
+                messages.push({ role: 'assistant', content: prefill });
+            }
+
             let result = await generateWithProfile(messages, maxContextTokens);
             let replyText = String(result).trim();
-
-            if (prefill && replyText.startsWith(prefill.trim())) {
-                replyText = replyText.substring(prefill.trim().length).trim();
-            }
 
             if (replyText.includes('[IGNORE]') || replyText.startsWith('[📩')) {
                 if ($('#st-typing').length) $('#st-typing').hide();
@@ -2774,6 +2834,20 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
                 console.warn('[Messages] 캘린더 프롬프트 로드 실패(무시됨):', calErr);
             }
 
+            // [NEW] 은행 잔액 프롬프트 가져오기
+            let bankPrompt = '';
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('bank')) {
+                    const Bank = window.STPhone?.Apps?.Bank;
+                    if (Bank && typeof Bank.generateBankSystemPrompt === 'function') {
+                        bankPrompt = Bank.generateBankSystemPrompt() || '';
+                    }
+                }
+            } catch (bankErr) {
+                console.warn('[Messages] 은행 프롬프트 로드 실패(무시됨):', bankErr);
+            }
+
             // [멀티턴 방식] 메시지 배열 구성
             const messages = [];
 
@@ -2788,11 +2862,11 @@ Personality: ${settings.userPersonality || '(not specified)'}
 
 ${systemPrompt}
 ${calendarEventsPrompt}
+${bankPrompt}
 
 ### Instructions
 You are ${contact.name} responding to a text message from ${myName}.
-Reply naturally based on the conversation history above.
-${prefill ? `Start your response with: ${prefill}` : ''}`;
+Reply naturally based on the conversation history above.`;
 
             messages.push({ role: 'system', content: systemContent });
 
@@ -2828,17 +2902,31 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
             }
             messages.push({ role: 'user', content: userMsgContent });
 
+            // [NEW] 프리필이 있으면 assistant role로 추가 (AI가 이어서 작성)
+            if (prefill) {
+                messages.push({ role: 'assistant', content: prefill });
+            }
+
             let result = await generateWithProfile(messages, maxContextTokens);
             let replyText = String(result).trim();
-
-            if (prefill && replyText.startsWith(prefill.trim())) {
-                replyText = replyText.substring(prefill.trim().length).trim();
-            }
 
             if (replyText.includes('[IGNORE]') || replyText.startsWith('[📩')) {
                 if ($('#st-typing').length) $('#st-typing').hide();
                 isGenerating = false;
                 return;
+            }
+
+            // [NEW] 은행 송금 패턴 파싱
+            try {
+                const Store = window.STPhone?.Apps?.Store;
+                if (Store && typeof Store.isInstalled === 'function' && Store.isInstalled('bank')) {
+                    const Bank = window.STPhone?.Apps?.Bank;
+                    if (Bank && typeof Bank.parseTransferFromResponse === 'function') {
+                        Bank.parseTransferFromResponse(replyText, contact.name);
+                    }
+                }
+            } catch (bankErr) {
+                console.warn('[Messages] 송금 파싱 실패(무시됨):', bankErr);
             }
 
             const imgMatch = replyText.match(/\[IMG:\s*([^\]]+)\]/i);
@@ -2901,7 +2989,126 @@ ${prefill ? `Start your response with: ${prefill}` : ''}`;
         if ($('#st-typing').length) $('#st-typing').hide();
     }
 
+    // ========== 송금 후 AI 답장 생성 ==========
+    async function generateTransferReply(contactId, contactName, amount, memo = '') {
+        const contact = window.STPhone.Apps.Contacts.getContact(contactId);
+        if (!contact) return;
 
+        isGenerating = true;
+        window.STPhone.isPhoneGenerating = true;
+
+        // 앱이 열려있을 때만 UI 업데이트
+        if ($('#st-typing').length) {
+            $('#st-typing').show();
+            scrollToBottom();
+        }
+
+        try {
+            const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
+            const myName = getUserName();
+            const maxContextTokens = settings.maxContextTokens || 4096;
+
+            // 은행 정보 가져오기
+            const Bank = window.STPhone?.Apps?.Bank;
+            const formattedAmount = Bank ? Bank.formatAmount(amount) : `${amount}원`;
+
+            // [멀티턴 방식] 메시지 배열 구성
+            const messages = [];
+
+            // 프리필 가져오기
+            const prefill = settings.prefill || '';
+
+            // 1. 시스템 프롬프트
+            const systemContent = `### Character Info
+Name: ${contact.name}
+Personality: ${contact.persona || '(not specified)'}
+
+### User Info
+Name: ${myName}
+Personality: ${settings.userPersonality || '(not specified)'}
+
+### Instructions
+${myName} just sent you ${formattedAmount} via bank transfer.${memo ? ` Memo: "${memo}"` : ''}
+You are ${contact.name} responding to this transfer via text message.
+React naturally to receiving this money - you can thank them, ask why they sent it, express surprise, etc.
+Keep the response brief and natural like a real text message.`;
+
+            messages.push({ role: 'system', content: systemContent });
+
+            // 2. 스토리 컨텍스트
+            const ctx = window.SillyTavern?.getContext() || {};
+            if (ctx.chat && ctx.chat.length > 0) {
+                const reverseChat = ctx.chat.slice().reverse();
+                const collectedMessages = [];
+                let currentTokens = 0;
+
+                for (const m of reverseChat) {
+                    const msgContent = m.mes || '';
+                    const estimatedTokens = Math.ceil(msgContent.length / 2.5);
+
+                    if (currentTokens + estimatedTokens > maxContextTokens) break;
+
+                    collectedMessages.unshift({
+                        role: m.is_user ? 'user' : 'assistant',
+                        content: msgContent
+                    });
+                    currentTokens += estimatedTokens;
+                }
+
+                messages.push(...collectedMessages);
+            }
+
+            // 3. 송금 알림 메시지
+            messages.push({
+                role: 'user',
+                content: `[Bank Transfer Notification] ${myName} sent you ${formattedAmount}.${memo ? ` Memo: ${memo}` : ''} Respond via text message.`
+            });
+
+            // 4. 프리필이 있으면 assistant role로 추가 (AI가 이어서 작성)
+            if (prefill) {
+                messages.push({ role: 'assistant', content: prefill });
+            }
+
+            let result = await generateWithProfile(messages, maxContextTokens);
+            let replyText = String(result).trim();
+
+            // 마커 제거 (은행 로그 포함)
+            replyText = replyText.replace(/\[REPLY\s*[^\]]*\]:\s*/gi, '');
+            replyText = replyText.replace(/^\s*(📩|💬)\s*/g, '');
+            replyText = replyText.replace(/\[IMG:\s*[^\]]+\]/gi, '');
+            replyText = replyText.replace(/\[💰[^\]]*\]/gi, '');  // 은행 로그 제거
+            replyText = replyText.replace(/\(거래\s*내역:[^)]*\)/gi, '');  // 거래 내역 제거
+
+            if (replyText) {
+                // 메시지 저장
+                const newIdx = addMessage(contactId, 'them', replyText);
+
+                // 현재 이 채팅을 보고 있으면 말풍선 추가
+                const isViewingThisChat = (currentChatType === 'dm' && currentContactId === contactId);
+                if (isViewingThisChat) {
+                    appendBubble('them', replyText, null, newIdx);
+                }
+
+                // 항상 알림 표시 (송금 반응은 중요하므로)
+                const contactAvatar = contact?.avatar || DEFAULT_AVATAR;
+                showNotification(contactName, replyText.substring(0, 50), contactAvatar, contactId, 'dm');
+
+                // 안 읽음 카운트 및 뱃지 업데이트
+                if (!isViewingThisChat) {
+                    const unread = getUnreadCount(contactId) + 1;
+                    setUnreadCount(contactId, unread);
+                }
+                updateMessagesBadge();
+            }
+
+        } catch (e) {
+            console.error('[Messages] Transfer reply generation failed:', e);
+        }
+
+        isGenerating = false;
+        window.STPhone.isPhoneGenerating = false;
+        if ($('#st-typing').length) $('#st-typing').hide();
+    }
 
 
     // ========== AI 그룹 답장 생성 ==========
@@ -4215,25 +4422,63 @@ ${modeHint}
     async function checkProactiveMessage(charName) {
         const settings = window.STPhone.Apps?.Settings?.getSettings?.() || {};
 
-        if (!settings.proactiveEnabled) return;
+        console.debug('📱 [Proactive] check start', { charName, enabled: !!settings.proactiveEnabled, isGenerating });
+
+        if (!settings.proactiveEnabled) {
+            console.debug('📱 [Proactive] disabled');
+            return;
+        }
 
         const sinceLast = Date.now() - lastProactiveCheck;
-        if (sinceLast < PROACTIVE_COOLDOWN) return;
-        if (isGenerating) return;
+        if (sinceLast < PROACTIVE_COOLDOWN) {
+            console.debug('📱 [Proactive] cooldown', { sinceLast, cooldown: PROACTIVE_COOLDOWN });
+            return;
+        }
+
+        if (isGenerating) {
+            console.debug('📱 [Proactive] blocked by isGenerating');
+            return;
+        }
 
         const chance = settings.proactiveChance || 30;
         const roll = Math.random() * 100;
-        if (roll > chance) return;
+
+        console.debug('📱 [Proactive] roll', { roll: Number(roll.toFixed(2)), chance });
+
+        if (roll > chance) {
+            console.log(`📱 [Proactive] 확률 미달 (${roll.toFixed(0)}% > ${chance}%)`);
+            return;
+        }
 
         lastProactiveCheck = Date.now();
 
+        // 1. 먼저 캐릭터 이름으로 연락처 찾기
         let contact = getContactByName(charName);
-        if (!contact) contact = await getBotContact();
-        if (!contact) contact = getRandomContact();
-        if (!contact) return;
 
-        if (contact.disableProactiveMessage) return;
+        // 2. 없으면 자동 생성된 봇 연락처 가져오기
+        if (!contact) {
+            contact = await getBotContact();
+        }
 
+        // 3. 그래도 없으면 랜덤 연락처
+        if (!contact) {
+            contact = getRandomContact();
+        }
+
+        if (!contact) {
+            console.log('📱 [Proactive] 연락처 없음');
+            return;
+        }
+
+        console.debug('📱 [Proactive] selected contact', { id: contact.id, name: contact.name, isTemp: !!contact.isTemp });
+
+        // [NEW] 연락처에서 선제 메시지 비활성화되어 있는지 확인
+        if (contact.disableProactiveMessage) {
+            console.log(`📱 [Proactive] ${contact.name}의 선제 메시지가 비활성화됨`);
+            return;
+        }
+
+        console.log(`📱 [Proactive] ${contact.name}에게서 선제 메시지 생성!`);
         await generateProactiveMessage(contact);
     }
 
@@ -4817,6 +5062,7 @@ Description: "${photoDescription}"
         addMessage,
         syncExternalMessage,
         updateMessagesBadge,
-        addHiddenLog
+        addHiddenLog,
+        generateTransferReply
     };
 })();

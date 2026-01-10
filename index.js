@@ -50,6 +50,8 @@ const EXTENSION_NAME = 'ST Phone System';
             await loadModule('apps/store-apps/games.js');
             await loadModule('apps/store-apps/calendar.js');
             await loadModule('apps/store-apps/theme.js');
+            await loadModule('apps/store-apps/bank.js');
+            await loadModule('apps/store-apps/streaming.js');
 
 
 
@@ -184,21 +186,38 @@ const EXTENSION_NAME = 'ST Phone System';
     function hideSystemLogs(node) {
         // 이미 처리된 건 스킵
         if (node.classList.contains('st-phone-hidden-log')) return;
+        if (node.classList.contains('st-phone-log-processed')) return;
 
         const textDiv = node.querySelector('.mes_text');
         if (!textDiv) return;
 
         const text = textDiv.innerText;
+        const html = textDiv.innerHTML;
 
-/* 수정후 코드 (안전한 버전) */
+        // [NEW] 은행 로그 패턴 (텍스트에서 제거용)
+        const bankLogPatterns = [
+            /\[💰[^\]]*\]/gi,                    // [💰 ...] 형식
+            /\(거래\s*내역:[^)]*\)/gi,           // (거래 내역: ...) 형식
+        ];
+
+        // 은행 로그가 포함되어 있으면 해당 부분만 제거
+        let hasBankLog = bankLogPatterns.some(p => p.test(text));
+        if (hasBankLog) {
+            let cleanedHtml = html;
+            bankLogPatterns.forEach(pattern => {
+                cleanedHtml = cleanedHtml.replace(pattern, '');
+            });
+            // 빈 줄 정리
+            cleanedHtml = cleanedHtml.replace(/(<br\s*\/?>\s*){2,}/gi, '<br>');
+            cleanedHtml = cleanedHtml.replace(/^\s*<br\s*\/?>\s*/gi, '');
+            textDiv.innerHTML = cleanedHtml;
+            node.classList.add('st-phone-log-processed');
+        }
 
         // [핵심 설명]
         // ^   : 문장의 시작을 의미
         // \s* : 앞에 띄어쓰기가 몇 칸 있든 상관없이 잡아냄
-        // 이렇게 해야 "나는 (SMS) 를 보냈다" 같은 문장은 안 숨겨지고,
-        // 진짜 시스템 로그 "(SMS) 안녕" 만 숨겨집니다.
 
-// [수정후 코드 모습] - 이 부분을 복사해서 'hiddenPatterns' 부분을 덮어씌우세요.
         const hiddenPatterns = [
             /^\s*\[📞/i,           // 통화 시작/진행 로그
             /^\s*\[❌/i,           // 통화 종료 로그
@@ -209,9 +228,9 @@ const EXTENSION_NAME = 'ST Phone System';
             /^\s*\[📲/i,           // 에어드롭 거절 로그 숨기기
             /^\s*\[ts:/i,          // [NEW] 타임스탬프 로그 숨기기
             /^\s*\[⏰/i,           // [NEW] 타임스탬프 로그 숨기기 (Time Skip)
+            /^\s*\[💰/i,          // [NEW] 은행 송금/잔액 로그 숨기기 (시작 부분)
+            /^\s*\[📺/i,          // [NEW] Fling 스트리밍 로그 숨기기
         ];
-
-
 
         // 패턴 중 하나라도 맞으면 CSS 숨김 클래스 부여
         const shouldHide = hiddenPatterns.some(regex => regex.test(text));
@@ -409,20 +428,47 @@ const EXTENSION_NAME = 'ST Phone System';
             });
             console.log(`📅 [${EXTENSION_NAME}] Calendar prompt injected`);
         }
+
+        // [NEW] 은행 앱 프롬프트도 주입
+        injectBankPrompt(data);
+    }
+
+    // [NEW] 은행 프롬프트 주입 함수
+    function injectBankPrompt(data) {
+        // 폰 앱에서 생성 중이면 스킵 (문자앱은 자체적으로 처리함)
+        if (window.STPhone?.isPhoneGenerating) {
+            return;
+        }
+
+        const Store = window.STPhone?.Apps?.Store;
+        if (!Store || !Store.isInstalled('bank')) {
+            return;
+        }
+
+        const Bank = window.STPhone?.Apps?.Bank;
+        if (!Bank) {
+            return;
+        }
+
+        try {
+            // 전체 은행 시스템 프롬프트 주입 (잔액 표시 + 송금 형식 설명)
+            const bankPrompt = Bank.generateBankSystemPrompt();
+            if (bankPrompt && data && data.chat && Array.isArray(data.chat)) {
+                data.chat.push({
+                    role: 'system',
+                    content: bankPrompt
+                });
+                console.log(`💰 [${EXTENSION_NAME}] Bank system prompt injected`);
+            }
+        } catch (e) {
+            console.warn(`[${EXTENSION_NAME}] Bank prompt injection failed:`, e);
+        }
     }
 
 
     // 수정후 코드
     function processCalendarResponse() {
         try {
-            const Store = window.STPhone?.Apps?.Store;
-            if (!Store || !Store.isInstalled('calendar')) {
-                return;
-            }
-
-            const Calendar = window.STPhone?.Apps?.Calendar;
-            if (!Calendar) return;
-
             const ctx = window.SillyTavern?.getContext?.();
             if (!ctx || !ctx.chat || ctx.chat.length === 0) return;
 
@@ -432,13 +478,35 @@ const EXTENSION_NAME = 'ST Phone System';
             const msgText = lastMsg.mes || '';
             if (!msgText) return;
 
-            // 날짜 추출 및 처리
-            const processed = Calendar.processAiResponse(msgText);
+            const Store = window.STPhone?.Apps?.Store;
 
-            // 날짜가 추출되었으면 메시지에서 날짜 부분 숨기기
-            if (processed !== msgText) {
-                // DOM에서 해당 메시지 찾아서 날짜 부분 숨기기
-                setTimeout(() => hideCalendarDateInChat(), 100);
+            // 캘린더 처리
+            if (Store && Store.isInstalled('calendar')) {
+                const Calendar = window.STPhone?.Apps?.Calendar;
+                if (Calendar) {
+                    // 날짜 추출 및 처리
+                    const processed = Calendar.processAiResponse(msgText);
+
+                    // 날짜가 추출되었으면 메시지에서 날짜 부분 숨기기
+                    if (processed !== msgText) {
+                        // DOM에서 해당 메시지 찾아서 날짜 부분 숨기기
+                        setTimeout(() => hideCalendarDateInChat(), 100);
+                    }
+                }
+            }
+
+            // [NEW] 은행 송금 패턴 처리
+            if (Store && Store.isInstalled('bank')) {
+                const Bank = window.STPhone?.Apps?.Bank;
+                if (Bank && typeof Bank.parseTransferFromResponse === 'function') {
+                    try {
+                        // 캐릭터 이름 추출
+                        const characterName = lastMsg.name || ctx.characterName || 'Unknown';
+                        Bank.parseTransferFromResponse(msgText, characterName);
+                    } catch (bankErr) {
+                        console.warn(`[${EXTENSION_NAME}] Bank transfer parsing failed:`, bankErr);
+                    }
+                }
             }
         } catch (e) {
             console.error(`[${EXTENSION_NAME}] processCalendarResponse 에러:`, e);
