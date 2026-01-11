@@ -27,23 +27,23 @@ window.STPhone.Apps.Messages = (function() {
     // 송금/출금 태그를 예쁜 문자열로 변환 (화면 표시용)
     function formatBankTagForDisplay(text) {
         if (!text) return text;
-        
+
         // 송금 패턴: [💰 보내는사람 송금 받는사람: 금액]
         // 예: [💰 ㅇㅇ 송금 잭: 2₩] → 💰 ㅇㅇ님이 잭님에게 2원을 송금했습니다.
-        text = text.replace(/\[💰\s*(.+?)\s+송금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi, 
+        text = text.replace(/\[💰\s*(.+?)\s+송금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi,
             (match, sender, receiver, amount) => {
                 return `💰 ${sender.trim()}님이 ${receiver.trim()}님에게 ${amount.trim()}원을 송금했습니다.`;
             });
-        
+
         // 출금 패턴: [💰 가게이름 출금 유저: 금액]
-        text = text.replace(/\[💰\s*(.+?)\s+출금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi, 
+        text = text.replace(/\[💰\s*(.+?)\s+출금\s+(.+?)\s*[:\s：]+\s*[\$₩€¥£]?\s*([\d,]+)\s*[\$₩€¥£원]?\s*\]/gi,
             (match, shop, user, amount) => {
                 return `💰 ${shop.trim()}에서 ${amount.trim()}원 결제`;
             });
-        
+
         // 잔액 패턴: [💰 유저 잔액: 금액] - 숨김 처리
         text = text.replace(/\[💰\s*.+?\s+잔액\s*[:\s：]+\s*[\$₩€¥£]?\s*[\d,]+\s*[\$₩€¥£원]?\s*\]/gi, '');
-        
+
         return text.trim();
     }
 
@@ -325,6 +325,7 @@ window.STPhone.Apps.Messages = (function() {
                 flex-direction: column;
                 max-width: 100%;
                 width: fit-content;
+                min-width: 0; /* 부모 요소 때문에 찌그러지는 것 방지 */
             }
             .st-msg-wrapper.me {
                 align-self: flex-end;
@@ -353,13 +354,15 @@ window.STPhone.Apps.Messages = (function() {
 
             .st-msg-bubble {
                 max-width: 75%;
-                min-width: 40px;
+                min-width: fit-content; /* 내용물에 맞게 최소 너비 설정 */
+                width: auto; /* 너비를 자동으로 설정 */
                 padding: 10px 14px;
                 border-radius: 18px;
                 font-size: 15px;
                 line-height: 1.4;
                 word-wrap: break-word;
-                word-break: break-word;
+                word-break: keep-all; /* 한글이 멋대로 잘리는 것 방지 */
+                white-space: pre-wrap; /* 줄바꿈 규칙 최적화 */
                 position: relative;
                 display: inline-block;
             }
@@ -1954,7 +1957,8 @@ const msgs = getMessages(contactId);
             const bubbleFontSize = messages.fontSize || 15;
 
             $('.st-msg-bubble').each(function() {
-                this.style.cssText += `max-width: ${bubbleWidth}% !important; border-radius: ${bubbleRadius}px !important; font-size: ${bubbleFontSize}px !important;`;
+                // width: auto와 word-break 설정을 추가하여 옆으로 길어지게 만듭니다.
+                this.style.cssText += `max-width: ${bubbleWidth}% !important; border-radius: ${bubbleRadius}px !important; font-size: ${bubbleFontSize}px !important; width: auto !important; min-width: fit-content !important; word-break: keep-all !important; white-space: pre-wrap !important;`;
             });
             $('.st-msg-bubble.me').each(function() {
                 this.style.cssText += `background: ${messages.myBubbleColor} !important; color: ${messages.myBubbleTextColor} !important; border-bottom-right-radius: 4px !important;`;
