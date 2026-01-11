@@ -398,10 +398,15 @@ const EXTENSION_NAME = 'ST Phone System';
     }
 
     function injectCalendarPrompt(data) {
-        // [NEW] 폰 앱(문자/전화)에서 AI 생성 중이면 주입 안 함
-        // 폰 앱은 자체적으로 getEventsOnlyPrompt()를 사용함
+        // [1] 폰 앱(문자/전화)에서 AI 생성 중이면 주입 안 함 (이게 문자할 때 막아주는 코드입니다!)
         if (window.STPhone?.isPhoneGenerating) {
             console.log(`📅 [${EXTENSION_NAME}] Calendar prompt skipped (phone app is generating)`);
+            return;
+        }
+
+        // [2] 방송(Streaming) 중이면 주입 안 함
+        if (window.STPhone?.Apps?.Streaming?.isLive?.()) {
+            console.log('📅 [ST Phone] Streaming is active - Skipping Calendar prompt injection');
             return;
         }
 
@@ -437,6 +442,12 @@ const EXTENSION_NAME = 'ST Phone System';
     function injectBankPrompt(data) {
         // 폰 앱에서 생성 중이면 스킵 (문자앱은 자체적으로 처리함)
         if (window.STPhone?.isPhoneGenerating) {
+            return;
+        }
+
+        // [추가됨] 방송(Streaming) 중이면 은행 프롬프트 주입 스킵
+        if (window.STPhone?.Apps?.Streaming?.isLive?.()) {
+            console.log('📺 [ST Phone] Streaming is active - Skipping Bank prompt injection');
             return;
         }
 
