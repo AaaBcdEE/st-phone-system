@@ -988,12 +988,15 @@ For BIG donations (jackpot moments), use larger amounts:
         const $chatMessages = $('#st-streaming-chat-messages');
         if (!$chatMessages.length) return;
 
+        // [수정 1] 로그를 담아둘 바구니(배열)를 만듭니다.
+        let logBuffer = [];
+
         for (const chat of chats) {
-            // Random delay between messages (300-1500ms)
+            // 메시지 간 랜덤 딜레이 (0.3 ~ 1.5초)
             const delay = 300 + Math.random() * 1200;
             await new Promise(resolve => setTimeout(resolve, delay));
 
-            if (!isLive) break; // Stop if stream ended
+            if (!isLive) break; // 방송 종료시 중단
 
             let html = '';
             if (chat.type === 'donation') {
@@ -1005,18 +1008,17 @@ For BIG donations (jackpot moments), use larger amounts:
                         </div>
                     </div>
                 `;
-                // Add to earnings and bank
+                // 수익 및 은행 추가
                 totalEarnings += chat.amount;
                 streamData.earnings = (streamData.earnings || 0) + chat.amount;
 
-                // Add to bank if installed
                 const Bank = window.STPhone?.Apps?.Bank;
                 if (Bank && typeof Bank.addBalance === 'function') {
                     Bank.addBalance(chat.amount, `${chat.username}님 Fling 후원`);
                 }
 
-                // [수정됨] 히든 로그: AI가 후원 금액과 메시지를 더 명확히 인지하도록 수정
-                addHiddenLog('System', `[📺 FLING DONATION] ${chat.username}님이 ${chat.amount}원을 후원하며 메시지를 보냈습니다: "${chat.message || '후원 감사합니다!'}"`);
+                // [수정 2] addHiddenLog 대신 바구니(logBuffer)에 담습니다.
+                logBuffer.push(`[📺 FLING DONATION] ${chat.username}님이 ${chat.amount}원을 후원하며 메시지를 보냈습니다: "${chat.message || '후원 감사합니다!'}"`);
 
             } else if (chat.type === 'contact') {
                 html = `
@@ -1027,21 +1029,27 @@ For BIG donations (jackpot moments), use larger amounts:
                         </div>
                     </div>
                 `;
-                // Hidden log for contact message
-                addHiddenLog(chat.username, `[📺 FLING CONTACT CHAT] ${chat.username}: "${chat.message}"`);
+                // [수정 2] 연락처 채팅도 바구니에 담습니다.
+                logBuffer.push(`[📺 FLING CONTACT CHAT] ${chat.username}: "${chat.message}"`);
+
             } else {
-                // [수정됨] 일반 시청자 채팅도 히든 로그에 기록 추가
                 html = `
                     <div class="st-streaming-chat-msg">
                         <span class="username">${chat.username}</span>
                         <span>${chat.message}</span>
                     </div>
                 `;
-                addHiddenLog('System', `[📺 FLING VIEWER] ${chat.username}: "${chat.message}"`);
+                // [수정 2] 일반 채팅도 바구니에 담습니다.
+                logBuffer.push(`[📺 FLING VIEWER] ${chat.username}: "${chat.message}"`);
             }
 
             $chatMessages.append(html);
             $chatMessages.scrollTop($chatMessages[0].scrollHeight);
+        }
+
+        // [수정 3] 채팅이 화면에 다 올라온 뒤, 모아둔 로그를 한 번에 묶어서(줄바꿈 \n 포함) 저장합니다.
+        if (logBuffer.length > 0) {
+            addHiddenLog('System', logBuffer.join('\n'));
         }
     }
 
@@ -1615,6 +1623,7 @@ For BIG donations (jackpot moments), use larger amounts:
         open,
         isInstalled: () => window.STPhone?.Apps?.Store?.isInstalled?.('streaming'),
         getStreamHistory: () => streamHistory,
-        getTotalEarnings: () => totalEarnings
+        getTotalEarnings: () => totalEarnings,
+        isLive: () => isLive  // [추가됨] 현재 방송 중인지 확인하는 함수
     };
 })();
